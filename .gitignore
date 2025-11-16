@@ -24,6 +24,7 @@ __pycache__/
 # 忽略以下資料夾內檔案
 202508110935-backup
 專案重啟
+過渡檔
 docs
 pybullet_wheel
 
