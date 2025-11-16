@@ -2,7 +2,7 @@
 
 **前提：** 此計畫假設您(你)已經在您的電腦上安裝了 Git。
 
-1.  **開啟終端機：** 我(AI)會指導您(你)開啟一個命令提示字元 (CMD) 或 PowerShell，並切換到您(你)的專案根目錄（根據文件，路徑應為 `D:\PYTHON_PROGRAMS\STEWART_PLATFORM\`）。
+1.  **開啟終端機：** 我(AI)會指導您(你)開啟一個命令提示字元 (CMD) 或 PowerShell，並切換到您(你)的專案根目錄（根據文件，路徑應為 `D:\PYTHON_PROGRAMS\STEWART_PLATFORM_OLD\`）。
 2.  **初始化本地 Git 儲存庫：** 我(AI)會提供指令，在該資料夾中建立一個新的 Git 儲存庫。
 3.  **新增 `.gitignore`：** 為了保持儲存庫的乾淨，我(AI)會建議您(你)建立一個 `.gitignore` 檔案，用來忽略 `/.venv/` 和 `__pycache__` 等不需要版本控制的檔案。
 4.  **建立「穩定基線」 (Main Baseline)：**
@@ -19,7 +19,7 @@
 
 ### 步驟 1-3：初始化本地儲存庫與 `.gitignore`
 
-請您(你)開啟您的命令提示字元 (CMD) 或 PowerShell，然後**逐一**執行以下指令。
+請您(你)開啟您的命令提示字元 (CMD) 或 PowerShell，然後**逐一**`執行以下指令。
 
 **1. 切換到您的專案根目錄**
 (根據指南，我(AI)假設路徑為 `D:\PYTHON_PROGRAMS\STEWART_PLATFORM\`)
