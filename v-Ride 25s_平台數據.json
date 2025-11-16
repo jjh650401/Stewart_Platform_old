@@ -1,0 +1,86 @@
+{
+    "Df": 0.0,
+    "df": 0.0,
+    "Dm": 0.0,
+    "dm": 0.0,
+    "D1": 2500.0,
+    "D2": 4000.0,
+    "d1": 2500.0,
+    "d2": 4000.0,
+    "Ra": 2195.3124999999995,
+    "Rb": 2195.3124999999995,
+    "H": 3004.9999999925367,
+    "L": 2500.0,
+    "s_mech": 1010.0,
+    "s_buffer": 10.0,
+    "s": 1000.0,
+    "base_joint_limit": 0.5235987755982988,
+    "platform_joint_limit": 0.5235987755982988,
+    "m_p": 1000.0,
+    "m_l": 8500.0,
+    "com_l_x": 0.0,
+    "com_l_y": 0.0,
+    "com_l_z": 700.0,
+    "a_lin": [
+        0.0,
+        0.0,
+        0.0
+    ],
+    "a_ang": [
+        0.0,
+        0.0,
+        0.0
+    ],
+    "enable_joint_limits": false,
+    "platform_joint_style": "bottom",
+    "view_params": {
+        "cpos": [
+            [
+                5.983303959222141,
+                -7.2463815649669545,
+                6.801968453719828
+            ],
+            [
+                0.0,
+                0.1953125,
+                1.4
+            ],
+            [
+                -0.2114927727475454,
+                0.45707661281613554,
+                0.8639165336374133
+            ]
+        ],
+        "parallel_scale": 3.256977186076839
+    },
+    "drive_system_data": {
+        "mode": "auto",
+        "m": 99.99,
+        "a_max_g": 0.2,
+        "v_max": 100.0,
+        "theta": 90.0,
+        "mu": 0.01,
+        "f_w": 1.1,
+        "eta_screw": 90.0,
+        "eta_pulley": 95.0,
+        "t_ua": 6.0,
+        "t_uc": 60.0,
+        "t_ud": 30.0,
+        "t_da": 6.0,
+        "t_dc": 60.0,
+        "t_dd": 30.0,
+        "t_s": 99.99,
+        "R_h": 8.0,
+        "R_d": 100.0,
+        "R_y": 5.0,
+        "Aval": 80.0,
+        "selected_motor_id": 4,
+        "selected_screw_id": 2,
+        "use_pulley_selection": false,
+        "i": 2.0
+    },
+    "zero_pose_offset_x": 0.0,
+    "zero_pose_offset_y": 0.0,
+    "platform_type": "3-DOF",
+    "unit_system": "mm"
+}

@@ -1,0 +1,60 @@
+2025-10-26 11:01:39.771 [info] (Client) Pylance client (2025.9.1) started with python extension (2025.16.0)
+2025-10-26 11:01:40.322 [info] (36204) Server root directory: file:///c%3A/Users/jason/.vscode/extensions/ms-python.vscode-pylance-2025.9.1/dist
+2025-10-26 11:01:40.323 [info] (36204) Pylance language server 2025.9.1 (pyright version 1.1.406, commit 20aa20a1) starting
+2025-10-26 11:01:40.328 [info] (36204) Starting service instance "Stewart_Platform" for workspace "d:\Python_Programs\Stewart_Platform"
+2025-10-26 11:01:40.404 [info] (36204) Setting environmentName for service "Stewart_Platform": ".venv (3.12.6)"
+2025-10-26 11:01:40.408 [info] (36204) Setting pythonPath for service "Stewart_Platform": "D:\Python_Programs\Stewart_Platform\.venv\Scripts\python.exe"
+2025-10-26 11:01:40.408 [info] (36204) No include entries specified; assuming d:\Python_Programs\Stewart_Platform
+2025-10-26 11:01:40.408 [info] (36204) Auto-excluding **/node_modules
+2025-10-26 11:01:40.409 [info] (36204) Auto-excluding **/__pycache__
+2025-10-26 11:01:40.409 [info] (36204) Auto-excluding **/.*
+2025-10-26 11:01:40.617 [info] (36204) Assuming Python version 3.12.6.final.0
+2025-10-26 11:01:41.133 [info] (36204) BG: Priority queue background worker(2) root directory: file:///c%3A/Users/jason/.vscode/extensions/ms-python.vscode-pylance-2025.9.1/dist
+2025-10-26 11:01:41.133 [info] (36204) BG: Priority queue background worker(2) started
+2025-10-26 11:01:41.134 [info] (36204) Settings have not changed. Skipping update.
+2025-10-26 11:01:41.137 [info] (36204) Starting Mcp server id:3431 ...
+2025-10-26 11:01:41.244 [info] (36204) Found 101 source files
+2025-10-26 11:01:41.286 [info] (36204) Settings have not changed. Skipping update.
+2025-10-26 11:01:41.289 [info] (36204) Settings have not changed. Skipping update.
+2025-10-26 11:01:41.962 [info] (36204) BG: Indexer background runner(3) root directory: file:///c%3A/Users/jason/.vscode/extensions/ms-python.vscode-pylance-2025.9.1/dist (index)
+2025-10-26 11:01:41.962 [info] (36204) BG: Indexing(3) started
+2025-10-26 11:01:43.680 [info] (36204) BG: scanned(3) 159 files over 1 exec env
+2025-10-26 11:01:48.166 [info] (36204) BG: [IDX(3)] Long operation: index execution environment file:///d%3A/Python_Programs/Stewart_Platform (4289ms)
+2025-10-26 11:01:48.321 [info] (36204) BG: [IDX(3)] Long operation: index packages file:///d%3A/Python_Programs/Stewart_Platform (4519ms)
+2025-10-26 11:01:48.321 [info] (36204) BG: indexed(3) 159 files over 1 exec env
+2025-10-26 11:01:48.367 [info] (36204) BG: Indexing finished(3).
+2025-10-26 11:02:17.900 [info] (Client) Pylance client (2025.9.1) started with python extension (2025.16.0)
+2025-10-26 11:02:18.627 [info] (31476) Server root directory: file:///c%3A/Users/jason/.vscode/extensions/ms-python.vscode-pylance-2025.9.1/dist
+2025-10-26 11:02:18.628 [info] (31476) Pylance language server 2025.9.1 (pyright version 1.1.406, commit 20aa20a1) starting
+2025-10-26 11:02:18.649 [info] (31476) Starting service instance "Stewart_Platform" for workspace "d:\Python_Programs\Stewart_Platform"
+2025-10-26 11:02:18.835 [info] (31476) Starting Mcp server id:4980 ...
+2025-10-26 11:02:18.879 [info] (31476) Setting environmentName for service "Stewart_Platform": ".venv (3.12.6)"
+2025-10-26 11:02:18.879 [info] (31476) Setting pythonPath for service "Stewart_Platform": "D:\Python_Programs\Stewart_Platform\.venv\Scripts\python.exe"
+2025-10-26 11:02:18.879 [info] (31476) No include entries specified; assuming d:\Python_Programs\Stewart_Platform
+2025-10-26 11:02:18.880 [info] (31476) Auto-excluding **/node_modules
+2025-10-26 11:02:18.880 [info] (31476) Auto-excluding **/__pycache__
+2025-10-26 11:02:18.880 [info] (31476) Auto-excluding **/.*
+2025-10-26 11:02:19.079 [info] (31476) Assuming Python version 3.12.6.final.0
+2025-10-26 11:02:19.599 [info] (31476) Settings have not changed. Skipping update.
+2025-10-26 11:02:19.674 [info] (31476) Found 101 source files
+2025-10-26 11:02:19.685 [info] (31476) BG: Priority queue background worker(2) root directory: file:///c%3A/Users/jason/.vscode/extensions/ms-python.vscode-pylance-2025.9.1/dist
+2025-10-26 11:02:19.685 [info] (31476) BG: Priority queue background worker(2) started
+2025-10-26 11:02:19.685 [info] (31476) Settings have not changed. Skipping update.
+2025-10-26 11:02:19.685 [info] (31476) Starting service instance "<default>" for workspace ""
+2025-10-26 11:02:19.694 [info] (31476) Settings have not changed. Skipping update.
+2025-10-26 11:02:20.086 [info] (31476) Setting environmentName for service "<default>": "Python 3.12.6"
+2025-10-26 11:02:20.086 [info] (31476) Setting pythonPath for service "<default>": "c:\Users\jason\AppData\Local\Programs\Python\Python312\python.exe"
+2025-10-26 11:02:20.087 [info] (31476) No include entries specified; assuming \<default workspace root>
+2025-10-26 11:02:20.087 [info] (31476) Auto-excluding **/node_modules
+2025-10-26 11:02:20.087 [info] (31476) Auto-excluding **/__pycache__
+2025-10-26 11:02:20.088 [info] (31476) Auto-excluding **/.*
+2025-10-26 11:02:20.271 [info] (31476) Assuming Python version 3.12.6.final.0
+2025-10-26 11:02:21.852 [error] (31476) File or directory "\<default workspace root>" does not exist.
+2025-10-26 11:02:21.852 [info] (31476) No source files found.
+2025-10-26 11:02:21.872 [info] (31476) BG: Indexer background runner(3) root directory: file:///c%3A/Users/jason/.vscode/extensions/ms-python.vscode-pylance-2025.9.1/dist (index)
+2025-10-26 11:02:21.872 [info] (31476) BG: Indexing(3) started
+2025-10-26 11:02:21.873 [info] (31476) BG: Priority queue background worker(5) root directory: file:///c%3A/Users/jason/.vscode/extensions/ms-python.vscode-pylance-2025.9.1/dist
+2025-10-26 11:02:21.874 [info] (31476) BG: Priority queue background worker(5) started
+2025-10-26 11:02:22.630 [info] (31476) BG: scanned(3) 159 files over 1 exec env
+2025-10-26 11:02:23.108 [info] (31476) BG: indexed(3) 159 files over 1 exec env
+2025-10-26 11:02:23.172 [info] (31476) BG: Indexing finished(3).

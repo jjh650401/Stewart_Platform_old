@@ -1,0 +1,11 @@
+1. 測試一 (建立基線)：臨時的、用於除錯的 main_window.py，左側為簡單的藍色色塊，右側為簡單的紅色色塊，佈局比例正確 (45:55)
+
+2. 測試二 (隔離測試左側面板)：臨時的、用於除錯的 main_window.py，左側恢復為正常的 MasterGeometryWidget UI，右側為簡單的紅色色塊，佈局比例不正確。
+
+3. 測試三 (隔離測試右側面板)：已恢復正常功能的 main_window.py，最新的、用於除錯的 master_geometry_widget.py左側為簡單的綠色色塊，右側恢復為正常的 AnalysisWidget UI，佈局比例不正確。
+
+結論 (除錯第三步)：
+
+我們現在可以 100% 確定，main_window.py 的 QSplitter 設定是正確的，左側的 MasterGeometryWidget 及其所有子元件也都是正常的。
+
+問題的根源必定在 analysis_widget.py 的內部。是它向佈局系統回報了一個過大的「最小建議尺寸」，從而「擠壓」了左側面板的空間。

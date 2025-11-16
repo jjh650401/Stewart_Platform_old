@@ -1,0 +1,42 @@
+修改檔案清單與理由：
+
+1. src/gui/controls/six_dof_widget.py
+
+- 修改理由： 這是問題的核心，我們需要改變它獲取依賴的方式。
+
+- 具體修改：
+
+	- 完全移除 from src.gui.geometry_widget import GeometryWidget 導入語句。
+
+	- 修改其 __init__ 方法，讓它可以接收一個從外部傳入的 ui_builder 物件。
+
+2. src/gui/controls/three_dof_widget.py
+
+- 修改理由： 套用同樣的模式，並藉此機會消除程式碼重複。
+
+- 具體修改：
+
+	- 刪除其內部所有重複的 UI 建立方法（如 _create_input_row, _create_angle_input_row 等）。
+
+	- 修改其 __init__ 方法，讓它也能接收一個外部傳入的 ui_builder 物件。
+
+	- 重寫 _init_ui 方法，讓它像 six_dof_widget.py 一樣，使用傳入的 ui_builder 來建立介面。
+
+3. src/gui/controls/master_geometry_widget.py
+
+- 修改理由： 作為上層元件，它現在負責建立並「注入」那個共用的 ui_builder 工具。
+
+- 具體修改：
+
+	- 在檔案頂部導入 GeometryWidget。
+
+	- 在自己的 __init__ 方法中，建立一個 GeometryWidget 的實例。
+
+	- 在建立 SixDofWidget 和 ThreeDofWidget 物件時，將這個 GeometryWidget 實例作為參數傳遞進去。
+
+
+
+
+你已經忘了硬性約束的要求了嗎?另外之前你沒有提到要修改 geometry_widget.py，請重新確認為了解決這些錯誤到底要修改多少程式?
+
+

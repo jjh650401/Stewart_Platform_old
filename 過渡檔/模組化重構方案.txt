@@ -1,0 +1,25 @@
+開發分支的後續計畫：以重構驅動問題解決
+
+步驟一：建立 StateManager，實現數據與邏輯的初步分離 (當前步驟)
+- 動機：當前的 MainWindow 中散落著各種狀態變數（self.workspace_limits, self.mechanical_workspace_limits 等），數據流混亂，是導致不一致的根源。
+- 動作：
+	1. 我將新建 src/core/state_manager.py 檔案，並建立一個 StateManager 類別。
+	2. 我會將 MainWindow 中的所有核心狀態變數（如工作空間限制、當前平台類型等）轉移到這個 StateManager 中進行統一管理。
+	3. MainWindow 將不再自己儲存這些狀態，而是會持有一個 StateManager 的實例。當需要讀取或寫入狀態時，都透過 self.state_manager.get_workspace_limits() 或 self.state_manager.set_workspace_limits(...) 這樣明確的介面來進行。
+- 預期成果：
+	- 程式的功能不會有任何改變，但內部數據流將變得極其清晰。
+	- 這將直接暴露之前數據來源不一致的問題點，使我們可以在下一步中精準地修正它。
+
+步驟二：建立 AnalysisEngine，封裝複雜分析邏輯
+- 動機：MainWindow 中的 on_global_force_analysis_requested 函式過於龐大和複雜，包含了大量的計算邏輯，難以維護和除錯。
+- 動作：
+	1. 我將新建 src/core/analysis_engine.py 檔案。
+	2. 我會將 on_global_force_analysis_requested 中的所有核心邏輯（包括「智慧搜尋」演算法）遷移到 AnalysisEngine 的一個新函式中，例如 find_global_max_force。
+	3. 這個新函式將從 StateManager 讀取所需的數據（如工作空間範圍），並將計算結果（最大力和最差姿態）更新回 StateManager。
+- 預期成果：
+	- MainWindow 中的 on_global_force_analysis_requested 將被簡化為幾行簡潔的協調程式碼。
+	- 在這個過程中，我將徹底修正「角落姿態生成順序不一致」以及「浮點數精度偏差」的問題，因為所有相關邏輯都被集中到了一個專門的、易於測試和驗證的模組中。
+
+步驟三：完成 v1.7 的最終驗證
+- 動作：在完成上述重構後，我將向您提供修改後的、仍在 v1.7 分支上的完整程式碼。
+- 驗證：屆時，您再進行交叉驗證測試。由於數據流已經被理清，演算法也被封裝，我非常有信心，「姿態越界」和「計算不一致」的問題將會得到徹底解決。
