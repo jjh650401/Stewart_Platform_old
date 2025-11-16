@@ -21,7 +21,8 @@ class CoreEngine:
         self.formulas = []
         self.dynamics_engine = DynamicsEngine()
         self._register_formulas()
-        print("核心計算引擎 v13.5 (單點測試診斷版) 已初始化。")
+        # [v2.3 註記] 移除 v13.5 等易混淆的內部版本號
+        print("核心計算引擎 (CoreEngine) 已初始化。")
         self.reset()
 
     def reset(self):
@@ -56,6 +57,9 @@ class CoreEngine:
         
         self.params['enable_joint_limits'] = False
         self.params['platform_joint_style'] = 'bottom'
+        
+        # [新增 - v2.3 共識 #8] 新增 6-DOF 輸入相位角參數
+        self.params['phase_angle_deg'] = 0.0
 
         self.params['base_joint_limit'] = np.deg2rad(25.0)
         self.params['platform_joint_limit'] = np.deg2rad(25.0)
@@ -68,7 +72,7 @@ class CoreEngine:
             'com_l_x': 0.0, 
             'com_l_y': 0.0, 
             'com_l_z': 700.0,
-            'a_lin': [0.0, 0.0, 0.5 * config.G_ACCELERATION],
+            'a_lin': [0.0, 0.0, config.G_ACCELERATION],
             'a_ang': [0.0, 0.0, 0.0]
         }
         self.params.update(dyn_keys)
@@ -79,8 +83,9 @@ class CoreEngine:
         self.formulas.clear()
         self.formulas.append({'output': 'Ra', 'inputs': ['Df', 'df'], 'func': self._calculate_radius_from_chords, 'type': '6-DOF'})
         self.formulas.append({'output': 'Rb', 'inputs': ['Dm', 'dm'], 'func': self._calculate_radius_from_chords, 'type': '6-DOF'})
-        self.formulas.append({'output': 'Ra', 'inputs': ['D1', 'D2'], 'func': self._calculate_radius_from_3dof_triangle, 'type': '3-DOF'})
-        self.formulas.append({'output': 'Rb', 'inputs': ['d1', 'd2'], 'func': self._calculate_radius_from_3dof_triangle, 'type': '3-DOF'})
+        # [刪除 - v2.3 共識 #11] 移除 3-DOF 對 'Ra' 和 'Rb' 的過時註冊
+        # self.formulas.append({'output': 'Ra', 'inputs': ['D1', 'D2'], 'func': self._calculate_radius_from_3dof_triangle, 'type': '3-DOF'})
+        # self.formulas.append({'output': 'Rb', 'inputs': ['d1', 'd2'], 'func': self._calculate_radius_from_3dof_triangle, 'type': '3-DOF'})
         self.formulas.append({'output': 's_mech', 'inputs': ['s', 's_buffer'], 'func': lambda p: p.get('s', 0) + p.get('s_buffer', 0), 'type': 'common'})
 
     def update_parameter(self, name, value):
@@ -236,12 +241,14 @@ class CoreEngine:
         if not h_val or h_val <= 0: return None
         if self.platform_type == '6-DOF':
             offset = self.zero_pose_offset
+            # [v2.3 註記] 零位 Yaw 來自 'phase_angle_deg'
+            zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
             pose_mm_rad = np.array([offset['x'] + pose_ui.get('x', 0), 
                                   offset['y'] + pose_ui.get('y', 0), 
                                   h_val + pose_ui.get('z', 0), 
                                   np.deg2rad(pose_ui.get('pitch', 0)), 
                                   np.deg2rad(pose_ui.get('roll', 0)), 
-                                  np.deg2rad(pose_ui.get('yaw', 0))])
+                                  zero_yaw_rad + np.deg2rad(pose_ui.get('yaw', 0))]) # Yaw 是相對於零位 Yaw 的偏移
         else:
             pose_mm_rad = np.array([h_val + pose_ui.get('z', 0), 
                                   np.deg2rad(pose_ui.get('pitch', 0)), 
@@ -340,18 +347,9 @@ class CoreEngine:
             print(f"錯誤: _calculate_radius_from_chords 發生例外: {e}")
             return None
 
-    def _calculate_radius_from_3dof_triangle(self, p):
-        base = p.get('D1') if 'D1' in p else p.get('d1')
-        height = p.get('D2') if 'D2' in p else p.get('d2')
-        if not base or not height or base <= 0 or height <= 0: return None
-        try:
-            side_a_sq = (base / 2.0)**2 + height**2
-            side_a = np.sqrt(side_a_sq)
-            area = 0.5 * base * height
-            if area <= 0: return None
-            return (side_a * side_a * base) / (4.0 * area)
-        except (ValueError, ZeroDivisionError):
-            return None
+    # [刪除 - v2.3 共識 #3, #11] 移除 3-DOF 過時的半徑計算函式
+    # def _calculate_radius_from_3dof_triangle(self, p):
+    #     ...
 
     def _get_canonical_nodes(self):
         if self.platform_type == '6-DOF': return self._get_6dof_nodes()
@@ -359,12 +357,21 @@ class CoreEngine:
         return [], []
 
     def calculate_initial_height(self) -> float | None:
-        required_params = ['L', 'Ra', 'Rb']
-        if not all(self.get_parameter(key) and self.get_parameter(key) > 0 for key in required_params): return None
+        required_params_6dof = ['L', 'Ra', 'Rb']
+        required_params_3dof = ['L', 'D1', 'D2', 'd1', 'd2']
+        
+        if self.platform_type == '6-DOF':
+            if not all(self.get_parameter(key) and self.get_parameter(key) > 0 for key in required_params_6dof): return None
+        else: # 3-DOF
+             if not all(self.get_parameter(key) and self.get_parameter(key) > 0 for key in required_params_3dof): return None
+
         base_nodes, mobile_nodes = self._get_canonical_nodes()
         if not base_nodes or not mobile_nodes: return None
         target_leg_length = self.get_parameter('L')
+        
         if self.platform_type == '6-DOF':
+            # [v2.3 註記] 零位 Yaw 來自 'phase_angle_deg'
+            zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
             def error_func(pose_vars):
                 Tx, Ty, Tz, pitch, roll, yaw = pose_vars
                 r = Rotation.from_euler('ZXY', [yaw, pitch, roll], degrees=False)
@@ -374,7 +381,8 @@ class CoreEngine:
                     li_vec = (np.array([Tx, Ty, Tz]) + r.apply(Bi)) - Ai
                     errors.append(np.linalg.norm(li_vec)**2 - target_leg_length**2)
                 return errors
-            result = least_squares(error_func, [0, 0, target_leg_length, 0, 0, 0], method='lm', ftol=config.GEOMETRY_SOLVER_TOLERANCE)
+            # [v2.3 註記] 初始猜測的 Yaw 也使用 phase_angle_deg
+            result = least_squares(error_func, [0, 0, target_leg_length, 0, 0, zero_yaw_rad], method='lm', ftol=config.GEOMETRY_SOLVER_TOLERANCE)
             return result.x[2] if result.success else None
         else:
             def error_func_3dof(H_var):
@@ -386,30 +394,9 @@ class CoreEngine:
             result = minimize(error_func_3dof, [target_leg_length], method='SLSQP', bounds=[(0, None)])
             return result.x[0] if result.success else None
 
-    def get_phase_angle_deg(self) -> float | None:
-        if self.platform_type != '6-DOF': return 0.0
-        Ra, Df, df, Rb, Dm, dm = [self.get_parameter(key) for key in ['Ra', 'Df', 'df', 'Rb', 'Dm', 'dm']]
-        if not all([Ra, Df, df, Rb, Dm, dm]) or Ra <= 0 or Rb <= 0: return None
-        
-        if Df < df: Df, df = df, Df
-        if Dm < dm: Dm, dm = dm, Dm
-        
-        try:
-            if Df/(2*Ra) > 1.000001 or df/(2*Ra) > 1.000001 or Dm/(2*Rb) > 1.000001 or dm/(2*Rb) > 1.000001:
-                print("警告: 相位角計算時，弦長大於 2*R。")
-                return None
-
-            ratio_f_d = min(1.0, Df / (2.0 * Ra)) 
-            ratio_f_s = min(1.0, df / (2.0 * Ra)) 
-            ratio_m_d = min(1.0, Dm / (2.0 * Rb)) 
-            ratio_m_s = min(1.0, dm / (2.0 * Rb)) 
-            
-            beta_f = 2.0 * np.arcsin(ratio_f_s)  
-            alpha_m = 2.0 * np.arcsin(ratio_m_d) 
-            
-            stagger_rad = (beta_f - alpha_m) / 2.0
-            return np.rad2deg(stagger_rad)
-        except (ValueError, TypeError, ZeroDivisionError): return None
+    # [刪除 - v2.3 共識 #8, #11] 移除錯誤的 'stagger' 計算函式
+    # def get_phase_angle_deg(self) -> float | None:
+    #     ...
     
     def _get_3dof_nodes(self):
         base_nodes, mobile_nodes = [], []
@@ -430,7 +417,8 @@ class CoreEngine:
         return base_nodes, mobile_nodes
 
     def _calculate_geometry_3dof(self):
-        required = ['L', 's', 's_buffer', 'Ra', 'Rb']
+        # [修改 - v2.3 共識 #10] 移除 'Ra', 'Rb' 的依賴，改為依賴 v4.6 的質心參數
+        required = ['L', 's', 's_buffer', 'D1', 'D2', 'd1', 'd2']
         if not all(self.get_parameter(key) is not None for key in required): return False
         
         l, s, s_buf = [self.get_parameter(key) for key in ['L', 's', 's_buffer']]
@@ -512,7 +500,9 @@ class CoreEngine:
             if not base_nodes_internal: return [1e6] * 6
             return [np.linalg.norm(mobile_nodes_world[i] - np.array(base_nodes_internal[i]))**2 - target_leg_length**2 for i in range(len(base_nodes_internal))]
 
-        initial_guess = np.array([0, 0, l + s/2.0, 0, 0, 0]) 
+        # [修改 - v2.3 共識 #9] 初始猜測的 Yaw (索引 5) 應使用輸入的 phase_angle
+        zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
+        initial_guess = np.array([0, 0, l + s/2.0, 0, 0, zero_yaw_rad]) 
         status_message = ""
 
         scale_factor = self.get_parameter('Ra')
@@ -667,16 +657,15 @@ class CoreEngine:
                 alpha_m + beta_m + alpha_m + beta_m + alpha_m
             ]
             
-            # 根據 v4.3 文件，相位角 (stagger) 是 A/B 平台的固有幾何偏移
-            # stagger = (A平台第一個角 - B平台第一個角) / 2
-            # (A1,A2) 是短弦 (beta_f), (B1,B2) 是長弦 (alpha_m)
-            stagger = (beta_f - alpha_m) / 2.0
+            # [刪除 - v2.3 共識 #7] 移除錯誤的、計算出來的 'stagger'
+            # stagger = (beta_f - alpha_m) / 2.0
             
             # 旋轉偏移以匹配標準方位 (B1/B6 圍繞 X 軸對稱)
             rot_offset_mobile = - (angles_mobile_raw[5] - np.pi) / 2.0
             
-            # 應用相位角 和 旋轉偏移
-            angles_mobile = [a + stagger + rot_offset_mobile for a in angles_mobile_raw]
+            # [修改 - v2.3 共識 #7] 移除 stagger 的應用
+            # 註：使用者輸入的 'phase_angle_deg' (θ) 將在 _get_world_geometry_from_pose_vec 中被應用
+            angles_mobile = [a + rot_offset_mobile for a in angles_mobile_raw]
             mobile_nodes = [[Rb*np.cos(a), Rb*np.sin(a), 0] for a in angles_mobile]
             
         except (ValueError, TypeError, ZeroDivisionError) as e: 
@@ -825,10 +814,10 @@ class CoreEngine:
         if not H or H <= 0: return (False, None)
         
         # --- MODIFICATION START ---
-        # [註記] 修正：將 `neutral_pose` (分析起始點) 的 Yaw 改回 0.0。
-        # 真正的幾何相位角 (stagger) 已經在 `_get_6dof_nodes` 中被計算並應用於 B 平台節點。
-        # 因此，分析的「物理零位」就是 Yaw = 0。
-        neutral_pose = np.array([offset['x'], offset['y'], H, 0, 0, 0.0]) # 修正 Yaw 為 0.0
+        # [修改 - v2.3 共識 #9] 
+        # 'neutral_pose' (分析起始點) 的 Yaw (索引 5) 應使用輸入的 'phase_angle_deg'
+        zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
+        neutral_pose = np.array([offset['x'], offset['y'], H, 0, 0, zero_yaw_rad])
         # --- MODIFICATION END ---
         
         if self.get_parameter('enable_joint_limits'):
@@ -839,7 +828,7 @@ class CoreEngine:
         # --- START DIAGNOSTIC PRINTS ---
         print("\n" + "="*20 + " DIAGNOSTIC: STARTING WORKSPACE ANALYSIS " + "="*20)
         print(f"DIAGNOSTIC: Analyzing '{space_type}' workspace.")
-        print(f"DIAGNOSTIC: Neutral pose for analysis: {neutral_pose}")
+        print(f"DIAGNOSTIC: Neutral pose for analysis (X,Y,Z,P,R,Y_rad): {neutral_pose}")
         print("="*70 + "\n")
         # --- END DIAGNOSTIC PRINTS ---
         
@@ -865,6 +854,7 @@ class CoreEngine:
             min_val_abs = self._find_limit(i, -1, neutral_pose, space_type)
             max_val_abs = self._find_limit(i, 1, neutral_pose, space_type)
             if i==0: # Z-Position, relative to H0
+                # [v2.3 註記] 3-DOF 的 Z 軸是絕對位置，需減去 H0 得到相對值
                 limits[f"{name}_min"],limits[f"{name}_max"] = (min_val_abs-H0), (max_val_abs-H0)
             else: # Orientation
                 limits[f"{name}_min"],limits[f"{name}_max"] = min_val_abs, max_val_abs
