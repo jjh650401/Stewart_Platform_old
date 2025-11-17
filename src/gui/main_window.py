@@ -3,7 +3,7 @@
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
 # 根據 v5 開發規則，本專案所有長度單位統一使用毫米 (mm)。
 # UI層、核心層的所有長度參數的儲存、傳遞與計算皆以 mm 為準。
-# 詳情請參閱《基礎背景與規則.v5.md》。
+# 詳情請參閱《基礎背景與規則 v5 優化版.md》。
 # 「單位正常化」、「變數名稱 v2.0 對齊」、並完整保留與更新了所有中文註記
 
 import sys
@@ -335,8 +335,9 @@ class MainWindow(QMainWindow):
         if h_val and h_val > 0:
             current_widget.update_display_value('H', h_val, 'mm')
             current_widget.update_display_value('h_initial', self.core_engine.calculate_initial_height(), 'mm')
-            if self.core_engine.platform_type == '6-DOF':
-                current_widget.update_display_value('phase_angle', self.core_engine.get_phase_angle_deg(), 'deg')
+            
+            # [修正] 刪除了錯誤呼叫已廢棄函式 get_phase_angle_deg 的程式碼
+            
             current_widget.update_display_value('zero_pose_base_angle', self.core_engine.zero_pose_base_angle, 'deg')
             current_widget.update_display_value('zero_pose_platform_angle', self.core_engine.zero_pose_platform_angle, 'deg')
             
@@ -558,7 +559,7 @@ class MainWindow(QMainWindow):
         if project_path: default_filename = f"{project_path.split('/')[-1].split('\\')[-1].split('.')[0]}_Report.pdf"
         filepath, _ = QFileDialog.getSaveFileName(self, "儲存報告", default_filename, "PDF Files (*.pdf)")
         if not filepath: self.status_label.setText("報告生成已取消。"); return
-        project_data = {'project_path': self.state_manager.get_project_path() or "N/A", 'platform_type': self.state_manager.get_platform_type(), 'core_params': self.core_engine.get_all_parameters(), 'phase_angle': self.core_engine.get_phase_angle_deg() if self.state_manager.get_platform_type() == '6-DOF' else None, 'workspace_limits': self.state_manager.get_workspace_limits(), 'mechanical_workspace_limits': self.state_manager.get_mechanical_workspace_limits(), 'global_force_result': self.state_manager.get_global_force_result(), 'angle_range_result': self.state_manager.get_angle_range_result()}
+        project_data = {'project_path': self.state_manager.get_project_path() or "N/A", 'platform_type': self.state_manager.get_platform_type(), 'core_params': self.core_engine.get_all_parameters(), 'phase_angle': self.core_engine.get_parameter('phase_angle_deg') if self.state_manager.get_platform_type() == '6-DOF' else None, 'workspace_limits': self.state_manager.get_workspace_limits(), 'mechanical_workspace_limits': self.state_manager.get_mechanical_workspace_limits(), 'global_force_result': self.state_manager.get_global_force_result(), 'angle_range_result': self.state_manager.get_angle_range_result()}
         self.status_label.setText("正在生成 PDF 報告..."); QApplication.processEvents()
         generator = ReportGenerator(project_data, filepath); success, message = generator.generate_report()
         if success: self.status_label.setText(f"報告已成功儲存至 {filepath}"); QMessageBox.information(self, "成功", f"設計報告已成功儲存！")
