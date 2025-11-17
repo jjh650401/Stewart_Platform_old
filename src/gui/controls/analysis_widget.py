@@ -1,5 +1,16 @@
 # D:\Python_Programs\Stewart_Platform\src\gui\controls\analysis_widget.py
 
+# ==============================================================================
+# [修改註記 - feature-auto-demo (Bug 修復)]
+# 日期: 2025-11-17
+# 修改者: AI 協作
+# ------------------------------------------------------------------------------
+# 修改重點:
+# 1. [Bug修復] _apply_slider_value: 修正了負半週期的方向計算錯誤。
+#    - 原因: 原程式碼在處理 norm_val < 0 時多乘了一個 -1，導致負值變成正值。
+#    - 解決: 移除 * -1，讓負的 norm_val 正確驅動滑塊至負座標。
+# ==============================================================================
+
 # [架構性註記] 
 # 1. 根據 v5 開發規則，本專案所有長度單位統一使用毫米 (mm)。
 # 2. 本檔案 (UI 層) 負責將從核心引擎 (kinematics.py) 接收到的
@@ -11,7 +22,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QForm
                              QLabel, QPushButton, QCheckBox, QInputDialog, QMessageBox, QSizePolicy)
 from PyQt6.QtCore import Qt, QTimer, QEvent, pyqtSignal
 from src.core import config
-from src.utils.custom_widgets import CustomDoubleSpinBox, CustomSlider  # 導入自訂類別
+from src.utils.custom_widgets import CustomDoubleSpinBox, CustomSlider, CustomComboBox
 
 class AnalysisWidget(QWidget):
     pose_changed = pyqtSignal(dict)
@@ -33,6 +44,7 @@ class AnalysisWidget(QWidget):
         self.animation_duration = config.DEFAULT_ANIMATION_DURATION_S
         self.is_looping_animation = False
         self.selected_dofs_for_animation = []
+        self.current_demo_mode_index = 0 # 0: Custom, 1: Sequential, 2: Circular
         
         self._init_ui()
         self._connect_signals()
@@ -73,7 +85,6 @@ class AnalysisWidget(QWidget):
     def _create_workspace_display(self):
         group = QGroupBox("平台空間範圍")
         form = QFormLayout(group)
-        # [新增] 增加內部邊距
         form.setContentsMargins(10, 10, 10, 10)
         form.setVerticalSpacing(10)
         
@@ -85,7 +96,6 @@ class AnalysisWidget(QWidget):
         for name in self.dof_list:
             label_text = dof_map.get(name, name.capitalize())
             result_label = QLabel("[ 0.000 ~ 0.000 ]")
-            # [新增] 設定標籤靠右對齊，使數值更整齊
             result_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             form.addRow(label_text, result_label)
             self.workspace_labels[name] = result_label
@@ -95,7 +105,6 @@ class AnalysisWidget(QWidget):
     def _create_dof_controls(self):
         main_group = QGroupBox("平台姿態控制")
         form = QFormLayout(main_group)
-        # [新增] 增加內部邊距
         form.setContentsMargins(10, 10, 10, 10)
         form.setVerticalSpacing(10)
         
@@ -117,7 +126,7 @@ class AnalysisWidget(QWidget):
         return main_group
 
     def _add_slider_to_form(self, name, label, s_min, s_max, s_init, form_layout):
-        slider = CustomSlider(Qt.Orientation.Horizontal, self)  # 替換為 CustomSlider
+        slider = CustomSlider(Qt.Orientation.Horizontal, self)
         prec = config.SLIDER_PRECISION_FACTOR
         slider.setRange(int(s_min * prec), int(s_max * prec))
         slider.setValue(int(s_init * prec))
@@ -164,49 +173,51 @@ class AnalysisWidget(QWidget):
     def _create_demo_controls(self):
         group = QGroupBox("姿態展演與視覺化")
         layout = QVBoxLayout(group)
-        # [新增] 增加內部邊距
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         
-        checkbox_layout = QHBoxLayout()
+        # [新增] 展演模式選擇與選項
+        options_layout = QHBoxLayout()
+        
+        self.demo_mode_combo = CustomComboBox(self)
+        self.demo_mode_combo.addItems([
+            "自訂勾選 (手動選擇)",
+            "單軸極限順序 (自動)", 
+            "畫圓/畫球繞行 (自動)"
+        ])
+        self.demo_mode_combo.setToolTip("選擇自動展演的模式")
+        
         self.demo_loop_checkbox = QCheckBox("循環展演", self)
-        # [修改] 讀取 config 檔案來設定預設值
         self.demo_loop_checkbox.setChecked(config.VIZ_DEFAULT_LOOP_ANIMATION)
 
         self.show_angles_checkbox = QCheckBox("顯示關節角度")
-        self.show_angles_checkbox.setToolTip("在 3D 視圖中，顯示連桿與平台的即時夾角。")
-        # [修改] 讀取 config 檔案來設定預設值
         self.show_angles_checkbox.setChecked(config.VIZ_DEFAULT_SHOW_ANGLES)
 
         self.show_coords_checkbox = QCheckBox("顯示節點座標")
-        self.show_coords_checkbox.setToolTip("在 3D 視圖中，顯示每個節點的即時世界座標。")
-        # [修改] 讀取 config 檔案來設定預設值
         self.show_coords_checkbox.setChecked(config.VIZ_DEFAULT_SHOW_COORDS)
         
-        checkbox_layout.addStretch(1)
-        checkbox_layout.addWidget(self.demo_loop_checkbox)
-        checkbox_layout.addStretch(1)
-        checkbox_layout.addWidget(self.show_angles_checkbox)
-        checkbox_layout.addStretch(1)
-        checkbox_layout.addWidget(self.show_coords_checkbox)
-        checkbox_layout.addStretch(1)
+        options_layout.addWidget(QLabel("模式:"))
+        options_layout.addWidget(self.demo_mode_combo, 1) # Stretch combo
+        options_layout.addWidget(self.demo_loop_checkbox)
+        options_layout.addWidget(self.show_angles_checkbox)
+        options_layout.addWidget(self.show_coords_checkbox)
         
         form_layout = QFormLayout()
-        # [新增] 為 form layout 也增加邊距設定
         form_layout.setContentsMargins(0, 5, 0, 5)
 
         self.demo_duration_spinbox = CustomDoubleSpinBox(self)
         self.demo_duration_spinbox.setRange(*config.ANIMATION_DURATION_RANGE_S)
         self.demo_duration_spinbox.setValue(self.animation_duration)
         self.demo_duration_spinbox.setSuffix(" s")
-        form_layout.addRow("展演時間 (秒):", self.demo_duration_spinbox)
+        # [修改] 標籤改為 "週期時間 (Cycle Time)" 以符合新邏輯
+        form_layout.addRow("週期時間 (Cycle Time, s):", self.demo_duration_spinbox)
         
         buttons_layout = QHBoxLayout()
         self.demo_start_btn = QPushButton("開始展演"); self.demo_stop_btn = QPushButton("停止展演")
         self.demo_stop_btn.setEnabled(False)
         buttons_layout.addWidget(self.demo_start_btn); buttons_layout.addWidget(self.demo_stop_btn)
         
-        layout.addLayout(checkbox_layout)
+        layout.addLayout(options_layout)
         layout.addLayout(form_layout)
         layout.addLayout(buttons_layout)
         
@@ -214,9 +225,27 @@ class AnalysisWidget(QWidget):
     
     def on_start_demo_clicked(self):
         if self.animation_timer.isActive(): return
-        self.selected_dofs_for_animation = [name for name, ctrl in self.sliders.items() if ctrl['checkbox'].isChecked()]
-        if not self.selected_dofs_for_animation:
-            QMessageBox.information(self, "提示", "請至少勾選一個要展演的姿態。"); return
+        
+        # [新增] 根據模式選擇目標軸
+        mode_idx = self.demo_mode_combo.currentIndex()
+        self.current_demo_mode_index = mode_idx
+        
+        if mode_idx == 0: # 自訂
+            self.selected_dofs_for_animation = [name for name, ctrl in self.sliders.items() if ctrl['checkbox'].isChecked()]
+            if not self.selected_dofs_for_animation:
+                QMessageBox.information(self, "提示", "請至少勾選一個要展演的姿態。")
+                return
+        
+        elif mode_idx == 1: # 單軸順序
+            # 自動選取所有可用軸
+            self.selected_dofs_for_animation = list(self.dof_list)
+            
+        elif mode_idx == 2: # 畫圓
+            # 檢查是否有 pitch 和 roll
+            if 'pitch' not in self.sliders or 'roll' not in self.sliders:
+                 QMessageBox.warning(self, "無法執行", "此平台類型不支援 Pitch/Roll 畫圓展演。")
+                 return
+            self.selected_dofs_for_animation = ['pitch', 'roll']
         
         self._set_demo_ui_enabled(is_running=True)
         self.animation_start_time = time.time()
@@ -328,30 +357,97 @@ class AnalysisWidget(QWidget):
     def on_stop_demo_clicked(self):
         if not self.animation_timer.isActive(): return
         self.animation_timer.stop()
-        for name in self.selected_dofs_for_animation: self.sliders[name]['slider'].setValue(0)
+        
+        # 停止時將所有參與動畫的軸歸零
+        targets = self.selected_dofs_for_animation if self.current_demo_mode_index != 1 else self.dof_list
+        for name in targets: 
+            if name in self.sliders:
+                self.sliders[name]['slider'].setValue(0)
+        
         self._on_any_slider_moved()
         self._set_demo_ui_enabled(is_running=False)
 
     def _update_animation_frame(self):
         elapsed_time = time.time() - self.animation_start_time
-        progress = elapsed_time / self.animation_duration
-        if progress >= 1.0:
-            if self.is_looping_animation:
-                progress %= 1.0; self.animation_start_time = time.time()
-            else:
+        cycle_duration = self.animation_duration
+        
+        # 模式 1: 自訂勾選 (原邏輯)
+        if self.current_demo_mode_index == 0:
+            progress = elapsed_time / cycle_duration
+            if progress >= 1.0:
+                if self.is_looping_animation:
+                    progress %= 1.0; self.animation_start_time = time.time()
+                else:
+                    self.on_stop_demo_clicked(); return
+            
+            # 標準化波形: 0 -> 1 -> 0 -> -1 -> 0 (sin波形)
+            # sin(2*pi*t) 在 t=0~1 剛好完成一個週期
+            norm_val = np.sin(2 * np.pi * progress)
+            
+            for name in self.selected_dofs_for_animation:
+                self._apply_slider_value(name, norm_val)
+
+        # 模式 2: 單軸極限順序
+        elif self.current_demo_mode_index == 1:
+            num_axes = len(self.selected_dofs_for_animation)
+            if num_axes == 0: return
+            
+            total_sequence_time = cycle_duration * num_axes
+            
+            if elapsed_time >= total_sequence_time and not self.is_looping_animation:
                 self.on_stop_demo_clicked(); return
+                
+            current_axis_idx = int(elapsed_time / cycle_duration) % num_axes
+            local_progress = (elapsed_time % cycle_duration) / cycle_duration
+            
+            # 標準化波形: 0 -> Max -> Min -> 0
+            norm_val = np.sin(2 * np.pi * local_progress)
+            
+            for i, name in enumerate(self.selected_dofs_for_animation):
+                if i == current_axis_idx:
+                    self._apply_slider_value(name, norm_val)
+                else:
+                    self.sliders[name]['slider'].setValue(0)
+
+        # 模式 3: 畫圓/畫球繞行
+        elif self.current_demo_mode_index == 2:
+            # 無限循環直到停止，或是單次
+            if elapsed_time >= cycle_duration and not self.is_looping_animation:
+                 self.on_stop_demo_clicked(); return
+                 
+            phase = 2 * np.pi * (elapsed_time / cycle_duration)
+            
+            # 設定振幅為滑塊最大範圍的 50% (安全範圍)
+            # Pitch 使用 sin
+            if 'pitch' in self.sliders:
+                self._apply_slider_value('pitch', np.sin(phase), amplitude_ratio=0.5)
+                
+            # Roll 使用 cos (相差 90 度)
+            if 'roll' in self.sliders:
+                self._apply_slider_value('roll', np.cos(phase), amplitude_ratio=0.5)
+            
+            # 其他軸歸零
+            for name in self.dof_list:
+                if name not in ['pitch', 'roll']:
+                     self.sliders[name]['slider'].setValue(0)
         
-        if progress < 0.25: norm_val = progress / 0.25
-        elif progress < 0.75: norm_val = 1.0 - ((progress - 0.25) / 0.5) * 2.0
-        else: norm_val = -1.0 + ((progress - 0.75) / 0.25)
-        
-        for name in self.selected_dofs_for_animation:
-            slider = self.sliders[name]['slider']
-            slider.blockSignals(True)
-            if norm_val >= 0: slider.setValue(int(norm_val * slider.maximum()))
-            else: slider.setValue(int(-norm_val * slider.minimum()))
-            slider.blockSignals(False)
         self._on_any_slider_moved()
+    
+    def _apply_slider_value(self, name, norm_val, amplitude_ratio=1.0):
+        """輔助函式：將標準化數值 (-1~1) 套用到滑塊"""
+        slider = self.sliders[name]['slider']
+        slider.blockSignals(True)
+        
+        # 根據正負值決定使用 max 或 min 的範圍
+        if norm_val >= 0:
+            target = slider.maximum() * amplitude_ratio
+            slider.setValue(int(norm_val * target))
+        else:
+            target = abs(slider.minimum()) * amplitude_ratio
+            # [修正] 移除多餘的 * -1，因為 norm_val 本身已是負值
+            slider.setValue(int(norm_val * target)) 
+            
+        slider.blockSignals(False)
 
     def _set_demo_ui_enabled(self, is_running: bool):
         if not hasattr(self, 'demo_start_btn'): return
@@ -359,6 +455,8 @@ class AnalysisWidget(QWidget):
         self.demo_stop_btn.setEnabled(is_running)
         self.demo_duration_spinbox.setEnabled(not is_running)
         self.demo_loop_checkbox.setEnabled(not is_running)
+        self.demo_mode_combo.setEnabled(not is_running) # [新增] 鎖定模式選擇
+        
         for ctrl in self.sliders.values():
             ctrl['slider'].setEnabled(not is_running)
             ctrl['checkbox'].setEnabled(not is_running)
