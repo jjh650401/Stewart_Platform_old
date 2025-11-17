@@ -79,6 +79,13 @@ class GeometryWidget:
         inputs['Dm'] = self.create_input_row(parent_widget, "Dm", "較大弦長 (Dm, mm):", form)
         inputs['dm'] = self.create_input_row(parent_widget, "dm", "較小弦長 (dm, mm):", form)
         
+        # [新增 - v2.3 共識 #8] 新增 6-DOF 輸入相位角 (θ)
+        inputs['phase_angle_deg'] = self.create_input_row(parent_widget, "phase_angle_deg", "相位角 (θ, °):", form)
+        inputs['phase_angle_deg'].setDecimals(2)
+        inputs['phase_angle_deg'].setRange(-180.0, 180.0)
+        inputs['phase_angle_deg'].setSingleStep(1.0)
+        inputs['phase_angle_deg'].setValue(0.0) # 預設值
+        
         labels['Rb'] = QLabel("N/A", parent_widget)
         labels['Rb'].setStyleSheet("font-weight: bold;")
         form.addRow("活動平台半徑 (Rb, mm):", labels['Rb'])
@@ -98,8 +105,10 @@ class GeometryWidget:
         inputs['D1'] = self.create_input_row(parent_widget, "D1", "底邊長度 (D1, mm):", form)
         inputs['D2'] = self.create_input_row(parent_widget, "D2", "三角形高 (D2, mm):", form)
         
+        # [v2.3 註記] 根據共識 #3，3-DOF 質心模型不使用 Ra/Rb。
+        # 此標籤在 v2.3 中無作用，但暫時保留以避免佈局崩潰。
         labels['Ra'] = QLabel("N/A", parent_widget)
-        labels['Ra'].setStyleSheet("font-weight: bold;")
+        labels['Ra'].setStyleSheet("font-weight: bold; color: #999;")
         form.addRow("外接圓半徑 (Ra, mm):", labels['Ra'])
         
         return group, inputs, labels
@@ -117,8 +126,10 @@ class GeometryWidget:
         inputs['d1'] = self.create_input_row(parent_widget, "d1", "底邊長度 (d1, mm):", form)
         inputs['d2'] = self.create_input_row(parent_widget, "d2", "三角形高 (d2, mm):", form)
         
+        # [v2.3 註記] 根據共識 #3，3-DOF 質心模型不使用 Ra/Rb。
+        # 此標籤在 v2.3 中無作用，但暫時保留以避免佈局崩潰。
         labels['Rb'] = QLabel("N/A", parent_widget)
-        labels['Rb'].setStyleSheet("font-weight: bold;")
+        labels['Rb'].setStyleSheet("font-weight: bold; color: #999;")
         form.addRow("外接圓半徑 (Rb, mm):", labels['Rb'])
         
         return group, inputs, labels
@@ -202,16 +213,19 @@ class GeometryWidget:
         labels['h_initial'] = QLabel("N/A", parent_widget); labels['h_initial'].setStyleSheet("font-weight: bold; color: #555;"); labels['h_initial'].setAlignment(Qt.AlignmentFlag.AlignLeft)
         grid_layout.addWidget(QLabel("初始高度 (h, mm):"), 1, 0); grid_layout.addWidget(labels['h_initial'], 1, 1)
 
-        if not is_3dof:
-            labels['phase_angle'] = QLabel("N/A", parent_widget); labels['phase_angle'].setStyleSheet("font-weight: bold; color: #555;"); labels['phase_angle'].setAlignment(Qt.AlignmentFlag.AlignLeft)
-            grid_layout.addWidget(QLabel("幾何相位角 (Δθ, °):"), 2, 0); grid_layout.addWidget(labels['phase_angle'], 2, 1)
+        # [刪除 - v2.3 共識 #4, #11] 移除過時的 '幾何相位角 (Δθ)' 顯示標籤
+        # if not is_3dof:
+        #    labels['phase_angle'] = QLabel("N/A", parent_widget); labels['phase_angle'].setStyleSheet("font-weight: bold; color: #555;"); labels['phase_angle'].setAlignment(Qt.AlignmentFlag.AlignLeft)
+        #    grid_layout.addWidget(QLabel("幾何相位角 (Δθ, °):"), 2, 0); grid_layout.addWidget(labels['phase_angle'], 2, 1)
 
         base_angle_label = QLabel("零位姿態所需固定平台擺角 (°):", parent_widget)
         platform_angle_label = QLabel("零位姿態所需活動平台擺角 (°):", parent_widget)
         labels['zero_pose_base_angle'] = QLabel("N/A", parent_widget); labels['zero_pose_base_angle'].setStyleSheet("font-weight: bold; color: #0055A4;"); labels['zero_pose_base_angle'].setAlignment(Qt.AlignmentFlag.AlignLeft)
         labels['zero_pose_platform_angle'] = QLabel("N/A", parent_widget); labels['zero_pose_platform_angle'].setStyleSheet("font-weight: bold; color: #0055A4;"); labels['zero_pose_platform_angle'].setAlignment(Qt.AlignmentFlag.AlignLeft)
-        grid_layout.addWidget(base_angle_label, 3, 0); grid_layout.addWidget(labels['zero_pose_base_angle'], 3, 1)
-        grid_layout.addWidget(platform_angle_label, 4, 0); grid_layout.addWidget(labels['zero_pose_platform_angle'], 4, 1)
+        
+        # [修改 - v2.3] 調整 row index 以匹配刪除
+        grid_layout.addWidget(base_angle_label, 2, 0); grid_layout.addWidget(labels['zero_pose_base_angle'], 2, 1)
+        grid_layout.addWidget(platform_angle_label, 3, 0); grid_layout.addWidget(labels['zero_pose_platform_angle'], 3, 1)
 
         results_display_group = QGroupBox("節點擺角範圍分析結果 (°)", parent_widget)
         results_layout = QVBoxLayout(results_display_group)
@@ -222,7 +236,8 @@ class GeometryWidget:
         displays['angle_results_display'].textChanged.connect(lambda: displays['angle_results_display'].setFixedHeight(int(displays['angle_results_display'].document().size().height() + 10)))
         results_layout.addWidget(displays['angle_results_display'])
         
-        grid_layout.addWidget(results_display_group, 5, 0, 1, 2)
+        # [修改 - v2.3] 調整 row index 以匹配刪除
+        grid_layout.addWidget(results_display_group, 4, 0, 1, 2)
         grid_layout.setColumnStretch(1, 1)
 
         # 最終返回兩個獨立的 GroupBox 以及相關資料

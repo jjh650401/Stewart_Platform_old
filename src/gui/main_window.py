@@ -1,9 +1,23 @@
 # D:\Python_Programs\Stewart_Platform\src\gui\main_window.py
 
+# ==============================================================================
+# [修改註記 - v2.3-kinematics-fix (UI 邏輯修正)]
+# 日期: 2025-11-17
+# 修改者: AI 協作
+# ------------------------------------------------------------------------------
+# 修改重點:
+# 1. [Bug修復] on_parameters_confirmed: 修正了「計算零位」按鈕的啟用邏輯。
+#    - 原因: 3-DOF 平台不再計算 Ra/Rb，導致舊邏輯 (依賴 Ra/Rb) 永遠回傳 False，鎖死按鈕。
+#    - 解決: 根據平台類型分流檢查：
+#      * 6-DOF: 檢查 ['Ra', 'Rb', 's_mech', 'L'] (保持不變)
+#      * 3-DOF: 檢查 ['D1', 'D2', 'd1', 'd2', 's_mech', 'L']
+# 2. [保留] 之前的雙重單位轉換修復 (on_workspace_analysis_finished)。
+# ==============================================================================
+
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
 # 根據 v5 開發規則，本專案所有長度單位統一使用毫米 (mm)。
 # UI層、核心層的所有長度參數的儲存、傳遞與計算皆以 mm 為準。
-# 詳情請參閱《基礎背景與規則.v5.md》。
+# 詳情請參閱《基礎背景與規則 v5 優化版.md》。
 # 「單位正常化」、「變數名稱 v2.0 對齊」、並完整保留與更新了所有中文註記
 
 import sys
@@ -308,10 +322,31 @@ class MainWindow(QMainWindow):
     def on_parameters_confirmed(self, params: dict):
         self.core_engine.reset_calculated_parameters(); self.state_manager.set_workspace_limits(None); self.state_manager.set_mechanical_workspace_limits(None)
         for name, value in params.items(): self.core_engine.update_parameter(name, value)
-        self.core_engine.calculate_target('Ra'); self.core_engine.calculate_target('Rb'); self.core_engine.calculate_target('s_mech')
+        
+        # [修改] 根據平台類型，決定要計算哪些 Target
+        if self.core_engine.platform_type == '6-DOF':
+            self.core_engine.calculate_target('Ra'); 
+            self.core_engine.calculate_target('Rb'); 
+        
+        self.core_engine.calculate_target('s_mech')
+        
         current_widget = self.get_current_geo_widget()
-        current_widget.update_display_value('Ra', self.core_engine.get_parameter('Ra')); current_widget.update_display_value('Rb', self.core_engine.get_parameter('Rb')); current_widget.update_display_value('s_mech', self.core_engine.get_parameter('s_mech'))
-        can_calc_h = all(self.core_engine.get_parameter(p) for p in ['Ra', 'Rb', 's_mech', 'L'])
+        
+        # 更新顯示 (6-DOF 才有 Ra/Rb)
+        if self.core_engine.platform_type == '6-DOF':
+            current_widget.update_display_value('Ra', self.core_engine.get_parameter('Ra'))
+            current_widget.update_display_value('Rb', self.core_engine.get_parameter('Rb'))
+        
+        current_widget.update_display_value('s_mech', self.core_engine.get_parameter('s_mech'))
+        
+        # [修正] 根據平台類型決定要檢查哪些參數來啟用「計算零位」按鈕
+        if self.core_engine.platform_type == '6-DOF':
+            required = ['Ra', 'Rb', 's_mech', 'L']
+        else: # 3-DOF
+            required = ['D1', 'D2', 'd1', 'd2', 's_mech', 'L']
+            
+        can_calc_h = all(self.core_engine.get_parameter(p) for p in required)
+        
         buttons = current_widget.get_buttons()
         if 'H' in buttons: buttons['H'].setEnabled(can_calc_h)
         if can_calc_h: self.status_label.setText("參數已確認，可計算零位。")
@@ -335,8 +370,7 @@ class MainWindow(QMainWindow):
         if h_val and h_val > 0:
             current_widget.update_display_value('H', h_val, 'mm')
             current_widget.update_display_value('h_initial', self.core_engine.calculate_initial_height(), 'mm')
-            if self.core_engine.platform_type == '6-DOF':
-                current_widget.update_display_value('phase_angle', self.core_engine.get_phase_angle_deg(), 'deg')
+            
             current_widget.update_display_value('zero_pose_base_angle', self.core_engine.zero_pose_base_angle, 'deg')
             current_widget.update_display_value('zero_pose_platform_angle', self.core_engine.zero_pose_platform_angle, 'deg')
             
@@ -405,13 +439,9 @@ class MainWindow(QMainWindow):
             else: 
                 self.state_manager.set_mechanical_workspace_limits(limits)
             
-            # 將角度從弧度轉換為度以更新UI
-            display_limits = limits.copy()
-            for key in ['pitch_min', 'pitch_max', 'roll_min', 'roll_max', 'yaw_min', 'yaw_max']:
-                if key in display_limits:
-                    display_limits[key] = np.rad2deg(display_limits[key])
-
-            self.controls_stack.currentWidget().update_workspace_display(display_limits, analysis_type, self.core_engine.get_parameter('H'))
+            # [修正] 移除此處的單位轉換。analysis_widget.py 會負責將弧度轉換為度數進行顯示。
+            # 避免發生雙重轉換導致數值異常 (e.g. +/- 1000度)。
+            self.controls_stack.currentWidget().update_workspace_display(limits, analysis_type, self.core_engine.get_parameter('H'))
             
             text = '可用' if analysis_type == 'operational' else '機械極限'
             self.status_label.setText(f"{text} 空間分析完成.")
@@ -558,7 +588,7 @@ class MainWindow(QMainWindow):
         if project_path: default_filename = f"{project_path.split('/')[-1].split('\\')[-1].split('.')[0]}_Report.pdf"
         filepath, _ = QFileDialog.getSaveFileName(self, "儲存報告", default_filename, "PDF Files (*.pdf)")
         if not filepath: self.status_label.setText("報告生成已取消。"); return
-        project_data = {'project_path': self.state_manager.get_project_path() or "N/A", 'platform_type': self.state_manager.get_platform_type(), 'core_params': self.core_engine.get_all_parameters(), 'phase_angle': self.core_engine.get_phase_angle_deg() if self.state_manager.get_platform_type() == '6-DOF' else None, 'workspace_limits': self.state_manager.get_workspace_limits(), 'mechanical_workspace_limits': self.state_manager.get_mechanical_workspace_limits(), 'global_force_result': self.state_manager.get_global_force_result(), 'angle_range_result': self.state_manager.get_angle_range_result()}
+        project_data = {'project_path': self.state_manager.get_project_path() or "N/A", 'platform_type': self.state_manager.get_platform_type(), 'core_params': self.core_engine.get_all_parameters(), 'phase_angle': self.core_engine.get_parameter('phase_angle_deg') if self.state_manager.get_platform_type() == '6-DOF' else None, 'workspace_limits': self.state_manager.get_workspace_limits(), 'mechanical_workspace_limits': self.state_manager.get_mechanical_workspace_limits(), 'global_force_result': self.state_manager.get_global_force_result(), 'angle_range_result': self.state_manager.get_angle_range_result()}
         self.status_label.setText("正在生成 PDF 報告..."); QApplication.processEvents()
         generator = ReportGenerator(project_data, filepath); success, message = generator.generate_report()
         if success: self.status_label.setText(f"報告已成功儲存至 {filepath}"); QMessageBox.information(self, "成功", f"設計報告已成功儲存！")

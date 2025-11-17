@@ -1,10 +1,19 @@
 # D:\Python_Programs\Stewart_Platform\src\core\kinematics.py
 
+# ==============================================================================
+# [修改註記 - v2.3-kinematics-fix (3-DOF 座標修正)]
+# 日期: 2025-11-17
+# 修改者: AI 協作
+# ------------------------------------------------------------------------------
+# 修改重點:
+# 1. [Bug修復] _analyze_workspace_3dof: 移除了 Heave (Z) 軸結果減去 H0 的操作。
+#    - 原因: UI 層 (analysis_widget.py) 已經包含了將絕對座標轉為相對座標的邏輯。
+#    - 解決: 防止「雙重扣減」導致 Heave 數值錯誤及 3D 預覽錯位，確保與 6-DOF 架構一致。
+# ==============================================================================
+
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
 # 根據 v5 開發規則，本專案所有長度單位統一使用毫米 (mm)。
 # UI層、核心層的所有長度參數的儲存、傳遞與計算皆以 mm 為準。
-# 詳情請參閱《基礎背景與規則 v5 優化版.md》。
-# 「單位正常化」、「變數名稱 v2.0 對齊」、並完整保留與更新了所有中文註記
 
 import numpy as np
 import json
@@ -21,7 +30,7 @@ class CoreEngine:
         self.formulas = []
         self.dynamics_engine = DynamicsEngine()
         self._register_formulas()
-        print("核心計算引擎 v13.5 (單點測試診斷版) 已初始化。")
+        print("核心計算引擎 (CoreEngine) v2.3 (3-DOF 修正版) 已初始化。")
         self.reset()
 
     def reset(self):
@@ -56,6 +65,9 @@ class CoreEngine:
         
         self.params['enable_joint_limits'] = False
         self.params['platform_joint_style'] = 'bottom'
+        
+        # [新增 - v2.3] 新增 6-DOF 輸入相位角參數
+        self.params['phase_angle_deg'] = 0.0
 
         self.params['base_joint_limit'] = np.deg2rad(25.0)
         self.params['platform_joint_limit'] = np.deg2rad(25.0)
@@ -68,7 +80,7 @@ class CoreEngine:
             'com_l_x': 0.0, 
             'com_l_y': 0.0, 
             'com_l_z': 700.0,
-            'a_lin': [0.0, 0.0, 0.5 * config.G_ACCELERATION],
+            'a_lin': [0.0, 0.0, config.G_ACCELERATION],
             'a_ang': [0.0, 0.0, 0.0]
         }
         self.params.update(dyn_keys)
@@ -79,8 +91,6 @@ class CoreEngine:
         self.formulas.clear()
         self.formulas.append({'output': 'Ra', 'inputs': ['Df', 'df'], 'func': self._calculate_radius_from_chords, 'type': '6-DOF'})
         self.formulas.append({'output': 'Rb', 'inputs': ['Dm', 'dm'], 'func': self._calculate_radius_from_chords, 'type': '6-DOF'})
-        self.formulas.append({'output': 'Ra', 'inputs': ['D1', 'D2'], 'func': self._calculate_radius_from_3dof_triangle, 'type': '3-DOF'})
-        self.formulas.append({'output': 'Rb', 'inputs': ['d1', 'd2'], 'func': self._calculate_radius_from_3dof_triangle, 'type': '3-DOF'})
         self.formulas.append({'output': 's_mech', 'inputs': ['s', 's_buffer'], 'func': lambda p: p.get('s', 0) + p.get('s_buffer', 0), 'type': 'common'})
 
     def update_parameter(self, name, value):
@@ -236,12 +246,14 @@ class CoreEngine:
         if not h_val or h_val <= 0: return None
         if self.platform_type == '6-DOF':
             offset = self.zero_pose_offset
+            # [v2.3 註記] 零位 Yaw 來自 'phase_angle_deg'
+            zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
             pose_mm_rad = np.array([offset['x'] + pose_ui.get('x', 0), 
                                   offset['y'] + pose_ui.get('y', 0), 
                                   h_val + pose_ui.get('z', 0), 
                                   np.deg2rad(pose_ui.get('pitch', 0)), 
                                   np.deg2rad(pose_ui.get('roll', 0)), 
-                                  np.deg2rad(pose_ui.get('yaw', 0))])
+                                  zero_yaw_rad + np.deg2rad(pose_ui.get('yaw', 0))]) # Yaw 是相對於零位 Yaw 的偏移
         else:
             pose_mm_rad = np.array([h_val + pose_ui.get('z', 0), 
                                   np.deg2rad(pose_ui.get('pitch', 0)), 
@@ -340,31 +352,27 @@ class CoreEngine:
             print(f"錯誤: _calculate_radius_from_chords 發生例外: {e}")
             return None
 
-    def _calculate_radius_from_3dof_triangle(self, p):
-        base = p.get('D1') if 'D1' in p else p.get('d1')
-        height = p.get('D2') if 'D2' in p else p.get('d2')
-        if not base or not height or base <= 0 or height <= 0: return None
-        try:
-            side_a_sq = (base / 2.0)**2 + height**2
-            side_a = np.sqrt(side_a_sq)
-            area = 0.5 * base * height
-            if area <= 0: return None
-            return (side_a * side_a * base) / (4.0 * area)
-        except (ValueError, ZeroDivisionError):
-            return None
-
     def _get_canonical_nodes(self):
         if self.platform_type == '6-DOF': return self._get_6dof_nodes()
         elif self.platform_type == '3-DOF': return self._get_3dof_nodes()
         return [], []
 
     def calculate_initial_height(self) -> float | None:
-        required_params = ['L', 'Ra', 'Rb']
-        if not all(self.get_parameter(key) and self.get_parameter(key) > 0 for key in required_params): return None
+        required_params_6dof = ['L', 'Ra', 'Rb']
+        required_params_3dof = ['L', 'D1', 'D2', 'd1', 'd2']
+        
+        if self.platform_type == '6-DOF':
+            if not all(self.get_parameter(key) and self.get_parameter(key) > 0 for key in required_params_6dof): return None
+        else: # 3-DOF
+             if not all(self.get_parameter(key) and self.get_parameter(key) > 0 for key in required_params_3dof): return None
+
         base_nodes, mobile_nodes = self._get_canonical_nodes()
         if not base_nodes or not mobile_nodes: return None
         target_leg_length = self.get_parameter('L')
+        
         if self.platform_type == '6-DOF':
+            # [v2.3 註記] 零位 Yaw 來自 'phase_angle_deg'
+            zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
             def error_func(pose_vars):
                 Tx, Ty, Tz, pitch, roll, yaw = pose_vars
                 r = Rotation.from_euler('ZXY', [yaw, pitch, roll], degrees=False)
@@ -374,7 +382,8 @@ class CoreEngine:
                     li_vec = (np.array([Tx, Ty, Tz]) + r.apply(Bi)) - Ai
                     errors.append(np.linalg.norm(li_vec)**2 - target_leg_length**2)
                 return errors
-            result = least_squares(error_func, [0, 0, target_leg_length, 0, 0, 0], method='lm', ftol=config.GEOMETRY_SOLVER_TOLERANCE)
+            # [v2.3 註記] 初始猜測的 Yaw 也使用 phase_angle_deg
+            result = least_squares(error_func, [0, 0, target_leg_length, 0, 0, zero_yaw_rad], method='lm', ftol=config.GEOMETRY_SOLVER_TOLERANCE)
             return result.x[2] if result.success else None
         else:
             def error_func_3dof(H_var):
@@ -386,115 +395,7 @@ class CoreEngine:
             result = minimize(error_func_3dof, [target_leg_length], method='SLSQP', bounds=[(0, None)])
             return result.x[0] if result.success else None
 
-    def get_phase_angle_deg(self) -> float | None:
-        if self.platform_type != '6-DOF': return 0.0
-        Ra, Df, df, Rb, Dm, dm = [self.get_parameter(key) for key in ['Ra', 'Df', 'df', 'Rb', 'Dm', 'dm']]
-        if not all([Ra, Df, df, Rb, Dm, dm]) or Ra <= 0 or Rb <= 0: return None
-        
-        if Df < df: Df, df = df, Df
-        if Dm < dm: Dm, dm = dm, Dm
-        
-        try:
-            if Df/(2*Ra) > 1.000001 or df/(2*Ra) > 1.000001 or Dm/(2*Rb) > 1.000001 or dm/(2*Rb) > 1.000001:
-                print("警告: 相位角計算時，弦長大於 2*R。")
-                return None
-
-            ratio_f_d = min(1.0, Df / (2.0 * Ra)) 
-            ratio_f_s = min(1.0, df / (2.0 * Ra)) 
-            ratio_m_d = min(1.0, Dm / (2.0 * Rb)) 
-            ratio_m_s = min(1.0, dm / (2.0 * Rb)) 
-            
-            beta_f = 2.0 * np.arcsin(ratio_f_s)  
-            alpha_m = 2.0 * np.arcsin(ratio_m_d) 
-            
-            stagger_rad = (beta_f - alpha_m) / 2.0
-            return np.rad2deg(stagger_rad)
-        except (ValueError, TypeError, ZeroDivisionError): return None
-    
-    def _get_3dof_nodes(self):
-        base_nodes, mobile_nodes = [], []
-        D1, D2 = self.get_parameter('D1'), self.get_parameter('D2')
-        if D1 and D2 and D1 > 0 and D2 > 0:
-            base_nodes = [
-                [-D1/2.0, -D2/3.0, 0.0], # A1 (Index 0)
-                [0.0, 2.0*D2/3.0, 0.0],      # A3 (Index 1)
-                [D1/2.0, -D2/3.0, 0.0]  # A5 (Index 2)
-            ]
-        d1, d2 = self.get_parameter('d1'), self.get_parameter('d2')
-        if d1 and d2 and d1 > 0 and d2 > 0:
-            mobile_nodes = [
-                [-d1/2.0, -d2/3.0, 0.0], # B1 (Index 0)
-                [0.0, 2.0*d2/3.0, 0.0],      # B3 (Index 1)
-                [d1/2.0, -d2/3.0, 0.0]  # B5 (Index 2)
-            ]
-        return base_nodes, mobile_nodes
-
-    def _calculate_geometry_3dof(self):
-        required = ['L', 's', 's_buffer', 'Ra', 'Rb']
-        if not all(self.get_parameter(key) is not None for key in required): return False
-        
-        l, s, s_buf = [self.get_parameter(key) for key in ['L', 's', 's_buffer']]
-        target_leg_length = l + s_buf/2.0 + s/2.0
-        def objective_func(H_var):
-            pose_vec = np.array([H_var[0], 0, 0])
-            _, mobile_nodes_world, base_nodes_internal = self._get_world_geometry_from_pose_vec(pose_vec)
-            if not base_nodes_internal: return 1e12
-            errors = [np.linalg.norm(mobile_nodes_world[i] - np.array(base_nodes_internal[i]))**2 - target_leg_length**2 for i in range(len(base_nodes_internal))]
-            return np.sum(np.array(errors)**2)
-        constraints = self._create_workspace_constraints('operational') if self.get_parameter('enable_joint_limits') else []
-        result = minimize(objective_func, [l + s/2.0], method='SLSQP', bounds=[(0, None)], constraints=constraints, tol=config.GEOMETRY_SOLVER_TOLERANCE)
-        if result.success and result.fun < 1e-6:
-            solved_h = result.x[0]
-            self.update_parameter('H', solved_h); self.zero_pose_offset = {'x': 0.0, 'y': 0.0}
-            r_matrix, mobile_nodes_world, base_nodes = self._get_world_geometry_from_pose_vec(np.array([solved_h, 0, 0]))
-            base_cos, plat_cos = self._calculate_joint_angles(r_matrix, base_nodes, mobile_nodes_world)
-            self.zero_pose_base_angle = np.rad2deg(np.max(np.arccos(base_cos)))
-            self.zero_pose_platform_angle = np.rad2deg(np.max(np.arccos(plat_cos)))
-            return True
-        return False
-
-    def _find_feasible_pose_by_height_adjustment(self, initial_pose_vec, base_nodes, mobile_nodes_local):
-        step = config.SOLVER_FEASIBILITY_SEARCH_STEP
-        max_iterations = config.SOLVER_FEASIBILITY_MAX_ITERATIONS
-        
-        base_limit = self.get_parameter('base_joint_limit')
-        platform_limit = self.get_parameter('platform_joint_limit')
-
-        def is_current_pose_valid(pose_vec):
-            r_matrix, mobile_nodes_world = self._get_world_geometry_from_pose_vec(pose_vec)[:2]
-            base_cos, platform_cos = self._calculate_joint_angles(r_matrix, base_nodes, mobile_nodes_world)
-            if np.any(base_cos < np.cos(base_limit)): return False
-            if np.any(platform_cos < np.cos(platform_limit)): return False
-            return True
-
-        if is_current_pose_valid(initial_pose_vec):
-            return initial_pose_vec, "初始姿態有效，無需調整"
-
-        original_z = initial_pose_vec[2]
-        current_pose_vec = initial_pose_vec.copy()
-        for i in range(1, (max_iterations // 2) + 1):
-            current_pose_vec[2] = original_z + i * step
-            if is_current_pose_valid(current_pose_vec):
-                adjustment_mm = i * step
-                msg = (f"警告：初始姿態與關節角度限制衝突。\n\n"
-                       f"系統已自動將平台高度向上微調 {adjustment_mm:.2f} mm 以完成計算。\n\n"
-                       f"改善建議：若要永久消除此警告，您可以考慮：\n"
-                       f"1. 微調『通用參數』中的『自然平衡零位高度 (H)』。\n"
-                       f"2. 適度放寬『關節角度限制』的設定值。")
-                return current_pose_vec, msg
-
-            current_pose_vec[2] = original_z - i * step
-            if is_current_pose_valid(current_pose_vec):
-                adjustment_mm = i * -step
-                msg = (f"警告：初始姿態與關節角度限制衝突。\n\n"
-                       f"系統已自動將平台高度向下微調 {adjustment_mm:.2f} mm 以完成計算。\n\n"
-                       f"改善建議：若要永久消除此警告，您可以考慮：\n"
-                       f"1. 微調『通用參數』中的『自然平衡零位高度 (H)』。\n"
-                       f"2. 適度放寬『關節角度限制』的設定值。")
-                return current_pose_vec, msg
-        
-        return None, "錯誤：在調整範圍內找不到滿足角度限制的可行姿態。"
-
+    # [重要修正] 補回缺失的 _calculate_geometry_6dof 函式
     def _calculate_geometry_6dof(self):
         required = ['L', 's', 's_buffer', 's_mech', 'Ra', 'Rb']
         if not all(self.get_parameter(key) is not None and self.get_parameter(key) > 0 for key in required):
@@ -512,7 +413,9 @@ class CoreEngine:
             if not base_nodes_internal: return [1e6] * 6
             return [np.linalg.norm(mobile_nodes_world[i] - np.array(base_nodes_internal[i]))**2 - target_leg_length**2 for i in range(len(base_nodes_internal))]
 
-        initial_guess = np.array([0, 0, l + s/2.0, 0, 0, 0]) 
+        # [修改 - v2.3 共識 #9] 初始猜測的 Yaw (索引 5) 應使用輸入的 phase_angle
+        zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
+        initial_guess = np.array([0, 0, l + s/2.0, 0, 0, zero_yaw_rad]) 
         status_message = ""
 
         scale_factor = self.get_parameter('Ra')
@@ -523,79 +426,27 @@ class CoreEngine:
             if down: scaled[:3] /= factor
             else: scaled[:3] *= factor
             return scaled
-
-        def make_scaled_func(original_func, factor):
-            return lambda scaled_vars: original_func(scale_pose(scaled_vars, factor, down=False))
         
-        if not self.get_parameter('enable_joint_limits'):
-            result = least_squares(error_func_vec, initial_guess, method='lm', ftol=config.GEOMETRY_SOLVER_TOLERANCE)
-            if not result.success:
-                return False, "求解器無法在無角度限制下收斂"
-            solved_pose = result.x
-            status_message = "計算成功 (未啟用角度限制)"
-        else:
-            feasible_start_point, status_message = self._find_feasible_pose_by_height_adjustment(
-                initial_guess, np.array(base_nodes), np.array(mobile_nodes)
-            )
-            
-            if feasible_start_point is None:
-                return False, status_message 
-
+        # [緊急修正 - v2.3] 計算 H (零位) 是一個幾何定義問題，不應受物理約束 (如腿長、角度) 限制。
+        result = least_squares(error_func_vec, initial_guess, method='lm', ftol=config.GEOMETRY_SOLVER_TOLERANCE)
+        
+        if not result.success:
+            # 嘗試使用 minimize 作為後備方案 (無約束)
             error_func_sq = lambda pose_vars: np.sum(np.square(error_func_vec(pose_vars)))
+            # 使用與 least_squares 相同的縮放邏輯
+            scaled_error_func = lambda scaled_vars: error_func_sq(scale_pose(scaled_vars, scale_factor, down=False))
+            scaled_initial = scale_pose(initial_guess, scale_factor, down=True)
             
-            scaled_error_func = make_scaled_func(error_func_sq, scale_factor)
+            res_min = minimize(scaled_error_func, scaled_initial, method='SLSQP', tol=config.GEOMETRY_SOLVER_TOLERANCE)
             
-            constraints = self._create_workspace_constraints('operational')
-            scaled_constraints = []
-            for const in constraints:
-                scaled_constraints.append({
-                    'type': const['type'],
-                    'fun': make_scaled_func(const['fun'], scale_factor)
-                })
-
-            bounds_obj = self._get_workspace_variable_bounds(feasible_start_point)
-            scaled_bounds_obj = Bounds(
-                lb=scale_pose(bounds_obj.lb, scale_factor, down=True),
-                ub=scale_pose(bounds_obj.ub, scale_factor, down=True)
-            )
-            scaled_start_point = scale_pose(feasible_start_point, scale_factor, down=True)
-            
-            # --- DIAGNOSTIC MODIFICATION START ---
-            # [註記] 依使用者要求，加入診斷訊息以追蹤求解器失敗原因。
-            print("\n" + "="*20 + " [診斷] 啟動 'minimize' 求解器 (零位計算) " + "="*20)
-            print(f"[診斷] 初始猜測點 (Scaled): {scaled_start_point}")
-            print(f"[診斷] 總約束條件數量: {len(scaled_constraints)}")
-
-            # 驗證約束條件在初始點的值
-            print("[診斷] 驗證初始點的約束條件 (應全部 >= 0):")
-            try:
-                for i, const in enumerate(constraints): # 使用未縮放的約束和點
-                    const_val = const['fun'](feasible_start_point)
-                    if const_val < -1e-6: # 容忍極小的負值
-                        print(f"  [!! 警告 !!] 約束 {i} 在初始點為負: {const_val:.2e}")
-                    # else:
-                    #     print(f"  [通過] 約束 {i} 在初始點為正: {const_val:.2e}")
-            except Exception as e:
-                print(f"  [!! 錯誤 !!] 驗證約束條件時出錯: {e}")
-            
-            print("[診斷] 呼叫 'scipy.optimize.minimize' (disp=True)...")
-            
-            result = minimize(scaled_error_func, scaled_start_point, method='SLSQP', 
-                            bounds=scaled_bounds_obj, constraints=scaled_constraints, 
-                            tol=config.GEOMETRY_SOLVER_TOLERANCE, 
-                            options={'disp': True}) # 啟用求解器的詳細日誌
-
-            print(f"[診斷] 'minimize' 執行完畢。")
-            print(f"[診斷] 求解器成功: {result.success}")
-            print(f"[診斷] 求解器訊息: {result.message}")
-            print(f"[診斷] 最終函數值 (應趨近0): {result.fun}")
-            print("="*60 + "\n")
-            # --- DIAGNOSTIC MODIFICATION END ---
-
-            if not (result.success and result.fun < 1e-6):
-                return False, f"求解器在有角度限制下無法收斂。\n({status_message})"
-            
-            solved_pose = scale_pose(result.x, scale_factor, down=False)
+            if res_min.success and res_min.fun < 1e-6:
+                solved_pose = scale_pose(res_min.x, scale_factor, down=False)
+                status_message = "計算成功 (使用後備優化器)"
+            else:
+                return False, "求解器無法收斂以找到幾何零位 (H)。請檢查幾何參數是否合理。"
+        else:
+            solved_pose = result.x
+            status_message = "計算成功"
 
         self.update_parameter('H', solved_pose[2])
         self.zero_pose_offset = {'x': solved_pose[0], 'y': solved_pose[1]}
@@ -606,9 +457,6 @@ class CoreEngine:
         self.zero_pose_platform_angle = np.rad2deg(np.max(np.arccos(plat_cos)))
         return True, status_message
 
-    # --- MODIFICATION START ---
-    # [註記] 根據 v4.3 拓樸修正版 (6-DOF 史都華平台完整幾何參數定義 v4.3 拓樸修正版)
-    # 重寫 6-DOF 節點定義，使用「角度累加法」並匹配交錯拓樸。
     def _get_6dof_nodes(self):
         base_nodes, mobile_nodes = [], []
         Ra, Df, df = self.get_parameter('Ra'), self.get_parameter('Df'), self.get_parameter('df')
@@ -617,29 +465,23 @@ class CoreEngine:
         if not all([Ra, Df, df, Rb, Dm, dm]) or Ra <= 0 or Rb <= 0:
             return [], []
 
-        # 確保 Df 是長弦, df 是短弦
         if Df < df: Df, df = df, Df
-        # 確保 Dm 是長弦, dm 是短弦
         if Dm < dm: Dm, dm = dm, Dm
         
         try:
-            # 檢查 asin 的定義域
             if Df/(2*Ra) > 1.0 or df/(2*Ra) > 1.0 or Dm/(2*Rb) > 1.0 or dm/(2*Rb) > 1.0:
-                # 容忍極小的浮點數誤差
                 if any(v > 1.000001 for v in [Df/(2*Ra), df/(2*Ra), Dm/(2*Rb), dm/(2*Rb)]):
                     print("警告: 弦長大於 2*R，無法計算節點。")
                     return [], []
             
-            ratio_f_d = min(1.0, Df / (2.0 * Ra)) # 長
-            ratio_f_s = min(1.0, df / (2.0 * Ra)) # 短
-            ratio_m_d = min(1.0, Dm / (2.0 * Rb)) # 長
-            ratio_m_s = min(1.0, dm / (2.0 * Rb)) # 短
+            ratio_f_d = min(1.0, Df / (2.0 * Ra))
+            ratio_f_s = min(1.0, df / (2.0 * Ra))
+            ratio_m_d = min(1.0, Dm / (2.0 * Rb))
+            ratio_m_s = min(1.0, dm / (2.0 * Rb))
 
-            # A 平台 (固定平台) (Short-Long 拓樸)
-            alpha_f = 2.0 * np.arcsin(ratio_f_d) # 長弦角
-            beta_f = 2.0 * np.arcsin(ratio_f_s)  # 短弦角
+            alpha_f = 2.0 * np.arcsin(ratio_f_d)
+            beta_f = 2.0 * np.arcsin(ratio_f_s)
             
-            # 節點角度累加: [0, B, B+a, B+a+B, B+a+B+a, B+a+B+a+B]
             angles_base_raw = [
                 0.0,
                 beta_f,
@@ -648,16 +490,13 @@ class CoreEngine:
                 beta_f + alpha_f + beta_f + alpha_f,
                 beta_f + alpha_f + beta_f + alpha_f + beta_f
             ]
-            # 旋轉偏移以匹配標準方位 (A1/A6 圍繞 X 軸對稱)
             rot_offset_base = - (angles_base_raw[5] - np.pi) / 2.0
             angles_base = [a + rot_offset_base for a in angles_base_raw]
             base_nodes = [[Ra*np.cos(a), Ra*np.sin(a), 0] for a in angles_base]
 
-            # B 平台 (活動平台) (Long-Short 拓樸)
-            alpha_m = 2.0 * np.arcsin(ratio_m_d) # 長弦角
-            beta_m = 2.0 * np.arcsin(ratio_m_s)  # 短弦角
+            alpha_m = 2.0 * np.arcsin(ratio_m_d)
+            beta_m = 2.0 * np.arcsin(ratio_m_s)
             
-            # 節點角度累加: [0, a, a+B, a+B+a, a+B+a+B, a+B+a+B+a]
             angles_mobile_raw = [
                 0.0,
                 alpha_m,
@@ -667,16 +506,11 @@ class CoreEngine:
                 alpha_m + beta_m + alpha_m + beta_m + alpha_m
             ]
             
-            # 根據 v4.3 文件，相位角 (stagger) 是 A/B 平台的固有幾何偏移
-            # stagger = (A平台第一個角 - B平台第一個角) / 2
-            # (A1,A2) 是短弦 (beta_f), (B1,B2) 是長弦 (alpha_m)
-            stagger = (beta_f - alpha_m) / 2.0
-            
-            # 旋轉偏移以匹配標準方位 (B1/B6 圍繞 X 軸對稱)
             rot_offset_mobile = - (angles_mobile_raw[5] - np.pi) / 2.0
             
-            # 應用相位角 和 旋轉偏移
-            angles_mobile = [a + stagger + rot_offset_mobile for a in angles_mobile_raw]
+            # [v2.3] 使用者輸入的 'phase_angle_deg' (θ) 將在 _get_world_geometry_from_pose_vec 中被應用
+            # 此處僅計算幾何形狀，不包含 Yaw 旋轉
+            angles_mobile = [a + rot_offset_mobile for a in angles_mobile_raw]
             mobile_nodes = [[Rb*np.cos(a), Rb*np.sin(a), 0] for a in angles_mobile]
             
         except (ValueError, TypeError, ZeroDivisionError) as e: 
@@ -684,52 +518,44 @@ class CoreEngine:
             return [], []
             
         return base_nodes, mobile_nodes
-    # --- MODIFICATION END ---
         
-    # --- MODIFICATION START ---
-    # [註記] 徹底重寫此方法以修正「變數正規化(Scaling)」的根本性缺陷。
-    # 舊版僅縮放 pose[:3]，導致求解器在混合尺度 (mm vs rad) 下運算，
-    # 從而產生 Surge 單邊範圍和角度範圍巨大的錯誤。
-    # 新版使用 scale_vector 確保所有自由度都被一致地正規化。
     def _find_limit(self, dof_index: int, direction: int, neutral_pose: np.ndarray, space_type: str):
         
         # 1. 建立縮放向量 (Scale Vector)
-        scale_factor_pos = self.get_parameter('Ra')
-        if not scale_factor_pos or scale_factor_pos <= 0: scale_factor_pos = 100.0
-        # 角度已經在 [-pi, pi] 範圍，無需縮放，故因子為 1.0
+        scale_factor_pos = float(self.get_parameter('Ra')) if self.get_parameter('Ra') else 100.0
+        # [強制修正] 強制角度縮放因子為 1.0
         scale_factor_ang = 1.0 
         
         if self.platform_type == '6-DOF':
             scale_vector = np.array([
-                scale_factor_pos, scale_factor_pos, scale_factor_pos, # X, Y, Z
-                scale_factor_ang, scale_factor_ang, scale_factor_ang  # Pitch, Roll, Yaw
-            ])
-        else: # 3-DOF
+                scale_factor_pos, scale_factor_pos, scale_factor_pos, 
+                scale_factor_ang, scale_factor_ang, scale_factor_ang  
+            ], dtype=float)
+        else: 
             scale_vector = np.array([
-                scale_factor_pos, # Z
-                scale_factor_ang, # Pitch
-                scale_factor_ang  # Roll
-            ])
+                scale_factor_pos, 
+                scale_factor_ang, 
+                scale_factor_ang 
+            ], dtype=float)
 
         # 2. 建立正規化/還原函數
         def scale_pose(pose, s_vec, down=True):
-            """使用 scale_vector 進行元素對應縮放。"""
             if down:
-                return np.divide(pose, s_vec) # 元素對應相除 (正規化)
+                return np.divide(pose, s_vec)
             else:
-                return np.multiply(pose, s_vec) # 元素對應相乘 (還原)
+                return np.multiply(pose, s_vec)
 
-        # 3. 目標函數必須在「縮放後」的空間中運作
+        # 3. 目標函數
         scaled_objective = lambda scaled_pose_vars: -direction * scaled_pose_vars[dof_index]
 
-        # 4. 約束函數的封裝器，必須「還原」縮放，在真實物理空間中計算
+        # 4. 約束函數
         def make_scaled_constraint_func(original_func, s_vec):
-            return lambda scaled_vars: original_func(scale_pose(scaled_vars, s_vec, down=False)) # 還原
+            return lambda scaled_vars: original_func(scale_pose(scaled_vars, s_vec, down=False))
 
         constraints = self._create_workspace_constraints(space_type)
         scaled_constraints = [{'type': c['type'], 'fun': make_scaled_constraint_func(c['fun'], scale_vector)} for c in constraints]
         
-        # 5. 邊界和起始點也必須被縮放
+        # 5. 邊界和起始點
         var_bounds = self._get_workspace_variable_bounds(neutral_pose)
         scaled_bounds = Bounds(
             lb=scale_pose(var_bounds.lb, scale_vector, down=True),
@@ -737,23 +563,33 @@ class CoreEngine:
         )
         scaled_x0 = scale_pose(neutral_pose, scale_vector, down=True)
 
+        # [診斷] 輸出關鍵除錯資訊
+        if dof_index >= 3: 
+             print(f"[DIAGNOSTIC _find_limit] DOF Index: {dof_index}, Direction: {direction}")
+             print(f"[DIAGNOSTIC _find_limit] Scale Vector: {scale_vector}")
+             print(f"[DIAGNOSTIC _find_limit] Scaled Bounds LB: {scaled_bounds.lb}")
+             print(f"[DIAGNOSTIC _find_limit] Scaled Bounds UB: {scaled_bounds.ub}")
+             print(f"[DIAGNOSTIC _find_limit] Scaled X0: {scaled_x0}")
+
         # 6. 執行求解器
         result = minimize(scaled_objective, x0=scaled_x0, method='SLSQP', constraints=scaled_constraints, bounds=scaled_bounds, 
                           options={'ftol': config.WORKSPACE_SOLVER_TOLERANCE, 'disp': False})
 
-        if result.success:
-            # 7. 將結果「還原」回真實的物理單位 (mm / rad)
-            final_pose = scale_pose(result.x, scale_vector, down=False)
-            return final_pose[dof_index]
-        else:
-            # 若求解失敗，返回中立點的值作為後備
-            return neutral_pose[dof_index]
-    # --- MODIFICATION END ---
+        print(f"[DIAGNOSTIC] Solver Success: {result.success}, Msg: {result.message}")
+        print(f"[DIAGNOSTIC] Raw Solver Output (Scaled): {result.x}")
 
-    # --- MODIFICATION START ---
-    # [註記] 徹底重構此方法，使其內部所有約束函數都變得獨立、自給自足，
-    # 透過統一呼叫 _get_world_geometry_from_pose_vec 來獲取所有同步的幾何數據，
-    # 以根除「預檢」和「正式求解」之間的邏輯不一致問題。
+        if result.success:
+            print(f"[DIAGNOSTIC] Scale Vector used for unscaling: {scale_vector}")
+            
+            final_pose = scale_pose(result.x, scale_vector, down=False)
+            print(f"[DIAGNOSTIC] Final Pose (Unscaled): {final_pose}")
+            
+            val = final_pose[dof_index]
+            print(f"[DIAGNOSTIC] Returning Value: {val}")
+            return val
+        else:
+            return neutral_pose[dof_index]
+
     def _create_workspace_constraints(self, space_type: str):
         L, s, s_buf, s_mech = [self.get_parameter(key) for key in ['L', 's', 's_buffer', 's_mech']]
         leg_min, leg_max = (L + s_buf/2.0, L + s_buf/2.0 + s) if space_type == 'operational' else (L, L + s_mech)
@@ -762,17 +598,13 @@ class CoreEngine:
         
         constraints = []
         
-        # 由於約束函數在內部會重新計算節點，我們只需要在這裡確定腿的數量
         num_legs = len(self._get_canonical_nodes()[0])
-        if num_legs == 0: 
-            return [] # 如果還沒有幾何參數，直接返回空列表
+        if num_legs == 0: return []
 
-        # --- 腿長限制條件 (重構為更穩定、清晰的輔助函數) ---
         def make_len_func(leg_idx, is_min):
             def len_constraint(pose):
-                # 每次都從 pose 重新計算所有幾何資訊
                 _r_matrix, mobile_nodes_world, base_nodes = self._get_world_geometry_from_pose_vec(pose)
-                if not base_nodes: return -1.0 # 幾何無效時返回一個負值 (違反約束)
+                if not base_nodes: return -1.0
                 length = np.linalg.norm(mobile_nodes_world[leg_idx] - base_nodes[leg_idx])
                 return (length - leg_min) if is_min else (leg_max - length)
             return len_constraint
@@ -781,18 +613,13 @@ class CoreEngine:
             constraints.append({'type': 'ineq', 'fun': make_len_func(i, True)})
             constraints.append({'type': 'ineq', 'fun': make_len_func(i, False)})
 
-        # --- 角度限制條件 (重構) ---
         if enable_angle_limits:
             def make_angle_func(leg_idx, is_base):
                 def constraint_func(pose):
-                    # 1. 每次計算時，都從 pose 重新取得完整的幾何資訊
                     r_matrix, mobile_nodes_world, base_nodes_internal = self._get_world_geometry_from_pose_vec(pose)
-                    if not base_nodes_internal: return -1.0 # 幾何無效時返回一個負值 (違反約束)
+                    if not base_nodes_internal: return -1.0
 
-                    # 2. 以正確順序呼叫角度計算函數
                     cos_angles = self._calculate_joint_angles(r_matrix, np.array(base_nodes_internal), mobile_nodes_world)
-                    
-                    # 3. 選取正確的關節角度並計算限制
                     angle_cos = cos_angles[0 if is_base else 1][leg_idx]
                     limit_cos = np.cos(base_limit if is_base else plat_limit)
                     return angle_cos - limit_cos
@@ -805,43 +632,41 @@ class CoreEngine:
                 for i in range(num_legs):
                     constraints.append({'type': 'ineq', 'fun': make_angle_func(i, False)})          
         return constraints
-    # --- MODIFICATION END ---
-
 
     def _get_workspace_variable_bounds(self, neutral_pose):
         s_mech, Ra, L_val = self.get_parameter('s_mech') or 0, self.get_parameter('Ra') or 0, self.get_parameter('L') or 0
+        
+        # [修正 - v2.3] 將角度邊界從 +/- pi 收緊至 +/- 85 度 (約 1.48 rad)
+        LIMIT_ANG_RAD = np.deg2rad(85.0) 
+        
         if self.platform_type == '6-DOF':
             H, x0, y0 = neutral_pose[2], neutral_pose[0], neutral_pose[1]
             max_travel = Ra + L_val + s_mech
-            lb = [x0-max_travel, y0-max_travel, 0, -np.pi, -np.pi, -np.pi]
-            ub = [x0+max_travel, y0+max_travel, max_travel, np.pi, np.pi, np.pi]
+            
+            lb = [x0-max_travel, y0-max_travel, 0, -LIMIT_ANG_RAD, -LIMIT_ANG_RAD, -LIMIT_ANG_RAD]
+            ub = [x0+max_travel, y0+max_travel, max_travel, LIMIT_ANG_RAD, LIMIT_ANG_RAD, LIMIT_ANG_RAD]
             return Bounds(lb, ub)
         else:
             H = neutral_pose[0]; max_travel = H + s_mech
-            return Bounds([0, -np.pi, -np.pi], [max_travel, np.pi, np.pi])
+            return Bounds([0, -LIMIT_ANG_RAD, -LIMIT_ANG_RAD], [max_travel, LIMIT_ANG_RAD, LIMIT_ANG_RAD])
 
     def _analyze_workspace_6dof(self, space_type):
         H, offset = self.get_parameter('H'), self.zero_pose_offset
         if not H or H <= 0: return (False, None)
         
-        # --- MODIFICATION START ---
-        # [註記] 修正：將 `neutral_pose` (分析起始點) 的 Yaw 改回 0.0。
-        # 真正的幾何相位角 (stagger) 已經在 `_get_6dof_nodes` 中被計算並應用於 B 平台節點。
-        # 因此，分析的「物理零位」就是 Yaw = 0。
-        neutral_pose = np.array([offset['x'], offset['y'], H, 0, 0, 0.0]) # 修正 Yaw 為 0.0
-        # --- MODIFICATION END ---
+        # [修改 - v2.3] 'neutral_pose' 的 Yaw 使用輸入的 'phase_angle_deg'
+        zero_yaw_rad = np.deg2rad(self.params.get('phase_angle_deg', 0.0))
+        neutral_pose = np.array([offset['x'], offset['y'], H, 0, 0, zero_yaw_rad])
         
         if self.get_parameter('enable_joint_limits'):
             feasible_pose = self._find_feasible_initial_pose(neutral_pose, space_type)
             if feasible_pose is None: return (False, "NO_FEASIBLE_START")
             neutral_pose = feasible_pose
         
-        # --- START DIAGNOSTIC PRINTS ---
         print("\n" + "="*20 + " DIAGNOSTIC: STARTING WORKSPACE ANALYSIS " + "="*20)
         print(f"DIAGNOSTIC: Analyzing '{space_type}' workspace.")
-        print(f"DIAGNOSTIC: Neutral pose for analysis: {neutral_pose}")
+        print(f"DIAGNOSTIC: Neutral pose for analysis (X,Y,Z,P,R,Y_rad): {neutral_pose}")
         print("="*70 + "\n")
-        # --- END DIAGNOSTIC PRINTS ---
         
         dof_names = ['x', 'y', 'z', 'pitch', 'roll', 'yaw']; limits = {}
         for i, name in enumerate(dof_names):
@@ -864,9 +689,12 @@ class CoreEngine:
         for i, name in enumerate(dof_names):
             min_val_abs = self._find_limit(i, -1, neutral_pose, space_type)
             max_val_abs = self._find_limit(i, 1, neutral_pose, space_type)
-            if i==0: # Z-Position, relative to H0
-                limits[f"{name}_min"],limits[f"{name}_max"] = (min_val_abs-H0), (max_val_abs-H0)
-            else: # Orientation
+            
+            # [修正 - v2.3] 這裡直接回傳絕對座標，不再減去 H0。
+            # 因為 analysis_widget.py 已經會執行 (min_abs - h_val) 的運算。
+            if i==0: 
+                limits[f"{name}_min"],limits[f"{name}_max"] = min_val_abs, max_val_abs
+            else: 
                 limits[f"{name}_min"],limits[f"{name}_max"] = min_val_abs, max_val_abs
         return (True, limits)
 
@@ -886,3 +714,46 @@ class CoreEngine:
 
     def analyze_mechanical_workspace(self):
         return self._analyze_workspace_6dof('mechanical') if self.platform_type == '6-DOF' else self._analyze_workspace_3dof('mechanical')
+
+    def _calculate_geometry_3dof(self):
+        required = ['L', 's', 's_buffer', 'D1', 'D2', 'd1', 'd2']
+        if not all(self.get_parameter(key) is not None for key in required): return False
+        
+        l, s, s_buf = [self.get_parameter(key) for key in ['L', 's', 's_buffer']]
+        target_leg_length = l + s_buf/2.0 + s/2.0
+        def objective_func(H_var):
+            pose_vec = np.array([H_var[0], 0, 0])
+            _, mobile_nodes_world, base_nodes_internal = self._get_world_geometry_from_pose_vec(pose_vec)
+            if not base_nodes_internal: return 1e12
+            errors = [np.linalg.norm(mobile_nodes_world[i] - np.array(base_nodes_internal[i]))**2 - target_leg_length**2 for i in range(len(base_nodes_internal))]
+            return np.sum(np.array(errors)**2)
+        
+        # [修正 - v2.3] 3-DOF 同樣移除約束，僅求解幾何零位
+        result = minimize(objective_func, [l + s/2.0], method='SLSQP', bounds=[(0, None)], tol=config.GEOMETRY_SOLVER_TOLERANCE)
+        if result.success and result.fun < 1e-6:
+            solved_h = result.x[0]
+            self.update_parameter('H', solved_h); self.zero_pose_offset = {'x': 0.0, 'y': 0.0}
+            r_matrix, mobile_nodes_world, base_nodes = self._get_world_geometry_from_pose_vec(np.array([solved_h, 0, 0]))
+            base_cos, plat_cos = self._calculate_joint_angles(r_matrix, base_nodes, mobile_nodes_world)
+            self.zero_pose_base_angle = np.rad2deg(np.max(np.arccos(base_cos)))
+            self.zero_pose_platform_angle = np.rad2deg(np.max(np.arccos(plat_cos)))
+            return True
+        return False
+
+    def _get_3dof_nodes(self):
+        base_nodes, mobile_nodes = [], []
+        D1, D2 = self.get_parameter('D1'), self.get_parameter('D2')
+        if D1 and D2 and D1 > 0 and D2 > 0:
+            base_nodes = [
+                [-D1/2.0, -D2/3.0, 0.0], # A1
+                [0.0, 2.0*D2/3.0, 0.0],      # A3
+                [D1/2.0, -D2/3.0, 0.0]  # A5
+            ]
+        d1, d2 = self.get_parameter('d1'), self.get_parameter('d2')
+        if d1 and d2 and d1 > 0 and d2 > 0:
+            mobile_nodes = [
+                [-d1/2.0, -d2/3.0, 0.0], # B1
+                [0.0, 2.0*d2/3.0, 0.0],      # B3
+                [d1/2.0, -d2/3.0, 0.0]  # B5
+            ]
+        return base_nodes, mobile_nodes

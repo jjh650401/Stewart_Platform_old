@@ -226,7 +226,7 @@ class SixDofWidget(QWidget):
             if value is None or value < -1e9:
                 display_text = "N/A"
             else:
-                # --- MODIFIED: REMOVED unit conversion. Value from core is now already in mm. ---
+                # --- MODFIED: REMOVED unit conversion. Value from core is now already in mm. ---
                 display_text = f"{value:.2f}"
             self.labels[name].setText(display_text)
             
@@ -236,7 +236,8 @@ class SixDofWidget(QWidget):
         self.update_display_value('s_mech', None)
         self.update_display_value('H', None)
         self.update_display_value('h_initial', None)
-        self.update_display_value('phase_angle', None)
+        # [刪除 - v2.3 共識 #11] 移除對已刪除的 'phase_angle' 標籤的引用
+        # self.update_display_value('phase_angle', None)
         self.update_display_value('zero_pose_base_angle', None)
         self.update_display_value('zero_pose_platform_angle', None)
         
