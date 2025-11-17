@@ -1,5 +1,16 @@
 # D:\Python_Programs\Stewart_Platform\src\gui\main_window.py
 
+# ==============================================================================
+# [修改註記 - v2.3-kinematics-fix (UI 單位修正)]
+# 日期: 2025-11-17
+# 修改者: AI 協作
+# ------------------------------------------------------------------------------
+# 修改重點:
+# 1. [Bug修復] on_workspace_analysis_finished: 移除了多餘的 np.rad2deg 角度轉換。
+#    - 原因: analysis_widget.py 已包含顯示層的單位轉換邏輯。
+#    - 解決: 防止「雙重轉換」導致角度數值膨脹至非物理範圍 (如 +/- 1000度)。
+# ==============================================================================
+
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
 # 根據 v5 開發規則，本專案所有長度單位統一使用毫米 (mm)。
 # UI層、核心層的所有長度參數的儲存、傳遞與計算皆以 mm 為準。
@@ -406,13 +417,9 @@ class MainWindow(QMainWindow):
             else: 
                 self.state_manager.set_mechanical_workspace_limits(limits)
             
-            # 將角度從弧度轉換為度以更新UI
-            display_limits = limits.copy()
-            for key in ['pitch_min', 'pitch_max', 'roll_min', 'roll_max', 'yaw_min', 'yaw_max']:
-                if key in display_limits:
-                    display_limits[key] = np.rad2deg(display_limits[key])
-
-            self.controls_stack.currentWidget().update_workspace_display(display_limits, analysis_type, self.core_engine.get_parameter('H'))
+            # [修正] 移除此處的單位轉換。analysis_widget.py 會負責將弧度轉換為度數進行顯示。
+            # 避免發生雙重轉換導致數值異常 (e.g. +/- 1000度)。
+            self.controls_stack.currentWidget().update_workspace_display(limits, analysis_type, self.core_engine.get_parameter('H'))
             
             text = '可用' if analysis_type == 'operational' else '機械極限'
             self.status_label.setText(f"{text} 空間分析完成.")
