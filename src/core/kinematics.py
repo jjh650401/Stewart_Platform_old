@@ -1,18 +1,14 @@
 # D:\Python_Programs\Stewart_Platform\src\core\kinematics.py
 
 # ==============================================================================
-# [修改註記 - v2.3-kinematics-fix (診斷強化版 - 補全缺失函式)]
+# [修改註記 - v2.3-kinematics-fix (3-DOF 座標修正)]
 # 日期: 2025-11-17
 # 修改者: AI 協作
 # ------------------------------------------------------------------------------
 # 修改重點:
-# 1. [修復遺漏] 補回先前版本中意外遺漏的 _calculate_geometry_6dof 函式定義。
-# 2. [核心修正] _calculate_geometry_6dof: 移除了求解 H 時的物理約束 (constraints)，
-#    僅保留幾何定義 (avg(L)=L_mid)，以解決因初始點違反約束導致的求解失敗。
-# 3. [核心修正] _get_workspace_variable_bounds: 將角度邊界從 ±π 強制收緊為 
-#    ±85度 (約 1.48 rad)，防止求解器發散至非物理區域。
-# 4. [診斷新增] _find_limit: 加入了詳細的 print 輸出。
-# 5. [模型一致性] 確保所有 6-DOF/3-DOF 的幾何定義符合 v2.3 規範。
+# 1. [Bug修復] _analyze_workspace_3dof: 移除了 Heave (Z) 軸結果減去 H0 的操作。
+#    - 原因: UI 層 (analysis_widget.py) 已經包含了將絕對座標轉為相對座標的邏輯。
+#    - 解決: 防止「雙重扣減」導致 Heave 數值錯誤及 3D 預覽錯位，確保與 6-DOF 架構一致。
 # ==============================================================================
 
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
@@ -34,7 +30,7 @@ class CoreEngine:
         self.formulas = []
         self.dynamics_engine = DynamicsEngine()
         self._register_formulas()
-        print("核心計算引擎 (CoreEngine) v2.3 (診斷強化+補完版) 已初始化。")
+        print("核心計算引擎 (CoreEngine) v2.3 (3-DOF 修正版) 已初始化。")
         self.reset()
 
     def reset(self):
@@ -693,8 +689,11 @@ class CoreEngine:
         for i, name in enumerate(dof_names):
             min_val_abs = self._find_limit(i, -1, neutral_pose, space_type)
             max_val_abs = self._find_limit(i, 1, neutral_pose, space_type)
+            
+            # [修正 - v2.3] 這裡直接回傳絕對座標，不再減去 H0。
+            # 因為 analysis_widget.py 已經會執行 (min_abs - h_val) 的運算。
             if i==0: 
-                limits[f"{name}_min"],limits[f"{name}_max"] = (min_val_abs-H0), (max_val_abs-H0)
+                limits[f"{name}_min"],limits[f"{name}_max"] = min_val_abs, max_val_abs
             else: 
                 limits[f"{name}_min"],limits[f"{name}_max"] = min_val_abs, max_val_abs
         return (True, limits)

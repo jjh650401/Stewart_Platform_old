@@ -1,14 +1,17 @@
 # D:\Python_Programs\Stewart_Platform\src\gui\main_window.py
 
 # ==============================================================================
-# [修改註記 - v2.3-kinematics-fix (UI 單位修正)]
+# [修改註記 - v2.3-kinematics-fix (UI 邏輯修正)]
 # 日期: 2025-11-17
 # 修改者: AI 協作
 # ------------------------------------------------------------------------------
 # 修改重點:
-# 1. [Bug修復] on_workspace_analysis_finished: 移除了多餘的 np.rad2deg 角度轉換。
-#    - 原因: analysis_widget.py 已包含顯示層的單位轉換邏輯。
-#    - 解決: 防止「雙重轉換」導致角度數值膨脹至非物理範圍 (如 +/- 1000度)。
+# 1. [Bug修復] on_parameters_confirmed: 修正了「計算零位」按鈕的啟用邏輯。
+#    - 原因: 3-DOF 平台不再計算 Ra/Rb，導致舊邏輯 (依賴 Ra/Rb) 永遠回傳 False，鎖死按鈕。
+#    - 解決: 根據平台類型分流檢查：
+#      * 6-DOF: 檢查 ['Ra', 'Rb', 's_mech', 'L'] (保持不變)
+#      * 3-DOF: 檢查 ['D1', 'D2', 'd1', 'd2', 's_mech', 'L']
+# 2. [保留] 之前的雙重單位轉換修復 (on_workspace_analysis_finished)。
 # ==============================================================================
 
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
@@ -319,10 +322,31 @@ class MainWindow(QMainWindow):
     def on_parameters_confirmed(self, params: dict):
         self.core_engine.reset_calculated_parameters(); self.state_manager.set_workspace_limits(None); self.state_manager.set_mechanical_workspace_limits(None)
         for name, value in params.items(): self.core_engine.update_parameter(name, value)
-        self.core_engine.calculate_target('Ra'); self.core_engine.calculate_target('Rb'); self.core_engine.calculate_target('s_mech')
+        
+        # [修改] 根據平台類型，決定要計算哪些 Target
+        if self.core_engine.platform_type == '6-DOF':
+            self.core_engine.calculate_target('Ra'); 
+            self.core_engine.calculate_target('Rb'); 
+        
+        self.core_engine.calculate_target('s_mech')
+        
         current_widget = self.get_current_geo_widget()
-        current_widget.update_display_value('Ra', self.core_engine.get_parameter('Ra')); current_widget.update_display_value('Rb', self.core_engine.get_parameter('Rb')); current_widget.update_display_value('s_mech', self.core_engine.get_parameter('s_mech'))
-        can_calc_h = all(self.core_engine.get_parameter(p) for p in ['Ra', 'Rb', 's_mech', 'L'])
+        
+        # 更新顯示 (6-DOF 才有 Ra/Rb)
+        if self.core_engine.platform_type == '6-DOF':
+            current_widget.update_display_value('Ra', self.core_engine.get_parameter('Ra'))
+            current_widget.update_display_value('Rb', self.core_engine.get_parameter('Rb'))
+        
+        current_widget.update_display_value('s_mech', self.core_engine.get_parameter('s_mech'))
+        
+        # [修正] 根據平台類型決定要檢查哪些參數來啟用「計算零位」按鈕
+        if self.core_engine.platform_type == '6-DOF':
+            required = ['Ra', 'Rb', 's_mech', 'L']
+        else: # 3-DOF
+            required = ['D1', 'D2', 'd1', 'd2', 's_mech', 'L']
+            
+        can_calc_h = all(self.core_engine.get_parameter(p) for p in required)
+        
         buttons = current_widget.get_buttons()
         if 'H' in buttons: buttons['H'].setEnabled(can_calc_h)
         if can_calc_h: self.status_label.setText("參數已確認，可計算零位。")
@@ -346,8 +370,6 @@ class MainWindow(QMainWindow):
         if h_val and h_val > 0:
             current_widget.update_display_value('H', h_val, 'mm')
             current_widget.update_display_value('h_initial', self.core_engine.calculate_initial_height(), 'mm')
-            
-            # [修正] 刪除了錯誤呼叫已廢棄函式 get_phase_angle_deg 的程式碼
             
             current_widget.update_display_value('zero_pose_base_angle', self.core_engine.zero_pose_base_angle, 'deg')
             current_widget.update_display_value('zero_pose_platform_angle', self.core_engine.zero_pose_platform_angle, 'deg')
