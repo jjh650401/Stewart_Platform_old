@@ -1,17 +1,15 @@
 # D:\Python_Programs\Stewart_Platform\src\gui\main_window.py
 
 # ==============================================================================
-# [修改註記 - v2.3-kinematics-fix (UI 邏輯修正)]
-# 日期: 2025-11-17
+# [修改註記 - v2.3-kinematics-fix (3D 預覽修正)]
+# 日期: 2025-11-18
 # 修改者: AI 協作
 # ------------------------------------------------------------------------------
 # 修改重點:
-# 1. [Bug修復] on_parameters_confirmed: 修正了「計算零位」按鈕的啟用邏輯。
-#    - 原因: 3-DOF 平台不再計算 Ra/Rb，導致舊邏輯 (依賴 Ra/Rb) 永遠回傳 False，鎖死按鈕。
-#    - 解決: 根據平台類型分流檢查：
-#      * 6-DOF: 檢查 ['Ra', 'Rb', 's_mech', 'L'] (保持不變)
-#      * 3-DOF: 檢查 ['D1', 'D2', 'd1', 'd2', 's_mech', 'L']
-# 2. [保留] 之前的雙重單位轉換修復 (on_workspace_analysis_finished)。
+# 1. [Bug修復] _get_full_pose_and_geometry_data: 修正了 6-DOF 3D 預覽的幾何計算邏輯。
+#    - 原因: 先前未將 'phase_angle_deg' (相位角) 加入旋轉計算，導致平台主體 (黃線)
+#            停留在 0 度位置，與正確旋轉的法線 (洋紅線) 分離。
+#    - 解決: 在建立 Rotation 物件前，將 phase_angle_deg 加到 yaw 角度中。
 # ==============================================================================
 
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
@@ -486,8 +484,12 @@ class MainWindow(QMainWindow):
         
         offset_mm = self.core_engine.zero_pose_offset
         if self.core_engine.platform_type == '6-DOF':
+            # [修正] 讀取 phase_angle_deg 並加入旋轉計算
+            phase_angle = self.core_engine.get_parameter('phase_angle_deg') or 0.0
+            total_yaw = pose_ui.get('yaw', 0) + phase_angle
+            
             position = [offset_mm['x'] + pose_ui.get('x', 0), offset_mm['y'] + pose_ui.get('y', 0), h_val + pose_ui.get('z', 0)]
-            r = Rotation.from_euler('ZXY', [pose_ui.get('yaw', 0), pose_ui.get('pitch', 0), -pose_ui.get('roll', 0)], degrees=True)
+            r = Rotation.from_euler('ZXY', [total_yaw, pose_ui.get('pitch', 0), -pose_ui.get('roll', 0)], degrees=True)
         else: 
             position = [0, 0, h_val + pose_ui.get('z', 0)]
             r = Rotation.from_euler('ZXY', [0, pose_ui.get('pitch', 0), -pose_ui.get('roll', 0)], degrees=True)

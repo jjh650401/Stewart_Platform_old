@@ -1,10 +1,21 @@
 # D:\Python_Programs\Stewart_Platform\src\core\dynamics_engine.py
 
+# ==============================================================================
+# [修改註記 - fix-dynamics-algo (矩陣運算修正)]
+# 日期: 2025-11-18
+# 修改者: AI 協作
+# ------------------------------------------------------------------------------
+# 修改重點:
+# 1. [Bug修復] calculate_actuator_forces: 修正雅可比矩陣逆運算的邏輯錯誤。
+#    - 原因: wrench_matrix 本身已是結構矩陣 (J^T)，原程式碼多做了一次轉置 (.T)，
+#            導致計算出力值嚴重錯誤 (約放大 24 倍)。
+#    - 解決: 移除 .T，直接計算 np.linalg.inv(wrench_matrix)。
+# ==============================================================================
+
 # [架構性註記] 單位系統標準 (Architectural Note: Unit System Standard)
 # 本檔案遵循「核心層 (mm)」的單位原則，但為了計算標準物理單位 (N, Nm)，
 # 內部會進行局部的 mm -> m 轉換。
 # 詳情請參閱《基礎背景與規則.v5.md》。
-#「單位正常化」、「變數名稱 v2.0 對齊」、並完整保留與更新了所有中文註記
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -17,9 +28,8 @@ class DynamicsEngine:
     輸出：各電動缸所需的瞬時推力/拉力。
     """
     def __init__(self):
-        # --- MODIFIED: Update comment to reflect new unit in config ---
         self.g = np.array([0, 0, -config.G_ACCELERATION]) # 重力加速度向量 (mm/s^2)
-        print("動力學計算引擎 (DynamicsEngine) v1.1 (通用版) 已初始化。")
+        print("動力學計算引擎 (DynamicsEngine) v1.2 (矩陣修正版) 已初始化。")
 
     def calculate_actuator_forces(self, platform_params: dict, dynamics_params: dict) -> list[float] | None:
         """
@@ -42,7 +52,6 @@ class DynamicsEngine:
         
         num_actuators = len(base_nodes)
 
-        # --- MODIFIED: Renamed variables to align with v2.0 ---
         m_p = dynamics_params.get('m_p', 200.0)
         m_l = dynamics_params.get('m_l', 0.0)
         
@@ -70,7 +79,7 @@ class DynamicsEngine:
         
         r_vectors = mobile_nodes_world - total_com_world
         
-        # --- MODIFIED: Convert r_vectors to meters for wrench matrix calculation ---
+        # Convert r_vectors to meters for wrench matrix calculation
         r_vectors_m = r_vectors / 1000.0
         
         wrench_matrix = np.zeros((6, num_actuators))
@@ -81,7 +90,9 @@ class DynamicsEngine:
 
         try:
             if num_actuators == 6:
-                J_inv_T = np.linalg.inv(wrench_matrix.T)
+                # [修正] 移除不正確的轉置 (.T)。
+                # wrench_matrix 本身即為結構矩陣 (J^T)，直接取逆即可求解 F = (J^T)^-1 * W
+                J_inv_T = np.linalg.inv(wrench_matrix)
                 actuator_forces_callable = lambda wrench: J_inv_T @ (-wrench)
             else:
                 J_pseudo_inv = np.linalg.pinv(wrench_matrix)
@@ -91,7 +102,7 @@ class DynamicsEngine:
             print("錯誤：雅可比矩陣奇異，無法求解。")
             return None
 
-        # --- MODIFIED: Local conversions to get Force in N and Torque in Nm ---
+        # Local conversions to get Force in N and Torque in Nm
         # Convert gravitational force from kg*mm/s^2 to N (kg*m/s^2)
         force_g = (m_total * self.g) / 1000.0
         
@@ -102,7 +113,6 @@ class DynamicsEngine:
         # Inertia tensor is approximated based on a meter scale
         I_total_approx = np.eye(3) * config.DYN_INERTIA_APPROX_SCALAR
         
-        # --- MODIFIED: Use new v2.0 variable names ---
         # Convert inertial force from kg*mm/s^2 to N (kg*m/s^2)
         force_inertia = (-m_total * a_lin) / 1000.0
         
