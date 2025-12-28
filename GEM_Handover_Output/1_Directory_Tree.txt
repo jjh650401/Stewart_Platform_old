@@ -1,0 +1,293 @@
+Project Directory Structure:
+./
+    2025090702.md
+    20250908.md
+    3-DOF 等腰平台幾何參數定義 (從零開始).md
+    6-DOF 史都華平台完整幾何參數定義 v4.3 拓樸修正版.md
+    AI 任務提示詞_啟動專案無縫接續.md
+    AI 任務提示詞_專案總結與開發指南進版.md
+    AI 任務提示詞_文件進版與彙整.md
+    Git 協作操作指南_v3_0.md
+    Git 同步專案.md
+    Google 官方文件.md
+    i-Ride_平台數據.json
+    main.py
+    mi-Ride_平台數據.json
+    o-Ride E_平台數據.json
+    prepare_handover.py
+    requirements.txt
+    test_import.py
+    v-Ride 25s_平台數據.json
+    v2.1-final 專案工作總結與新對話交接清單.md
+    v2.2-final 專案工作總結與新對話交接清單.md
+    v2.3 專案交接清單.md
+    v2.3-final 專案工作總結與新對話交接清單.md
+    VS Code Python 指南.md
+    Zoo Emmen_平台數據.json
+    三个Gemini 3 高级技巧.md
+    不可動搖的溝通原則.md
+    全域最大靜載推力計算演算法.md
+    史都華平台結構設計學習指南.md
+    史都華平台設計聖經 v1.1.md
+    基礎背景與規則 v5 優化版.md
+    基礎背景與規則 v5.md
+    基礎背景與規則 v6.md
+    尚順三軸_平台數據.json
+    工作空間推演與分析方法.md
+    應用程式開發指南-v4.0 工程流程版.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具 - 3.0 版穩定規格版.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具-2.0_最終統一版.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具-2.1_單位系統審計修正版.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具-2.2_診斷修正版.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具-2.2_診斷失敗版.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具-2.3_模型定義修正版 copy.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具-2.3_模型定義修正版.md
+    應用程式開發指南：模組化史都華平台設計與模擬工具-2.4_模型定義修正版.md
+    提示詞_整理與打包現有專案進度.md
+    提示詞_無縫接續專案開發.md
+    核心演算法邏輯說明書.md
+    相位角.md
+    穩定基線及開發分支的流程.md
+    記錄.md
+    變數名稱 v2.0 全面對齊-系統性修改計畫.md
+    變數對應總表.md
+    電動缸系統設計與選型計算指南 2.0.md
+    驅動系統計算模組 - 開發規格書 v1.1.md
+    驅動系統計算過程檢查.md
+    202508110935-backup/
+        1.4.md
+        i-Ride_平台數據.json
+        main.py
+        mi-Ride_平台數據.json
+        requirements.txt
+        test_pybullet_widget.py
+        Zoo Emmen_平台數據.json
+        六自由度史都華平台簡化之三自由度平台.md
+        史都華平台參數描述及推導.md
+        尚順三軸_平台數據.json
+        應用程式開發指南：模組化史都華平台設計與模擬工具-修訂草稿_1.6.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.1.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.2.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.3.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.4.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-草稿_1.5.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-草稿_1.6.md
+        模組化史都華平台設計與模擬工具應用程式開發指南-提示.md
+        src/
+            1.5.md
+            __init__.py
+            core/
+                config.py
+                dynamics_engine.py
+                kinematics.py
+                __init__.py
+            db/
+                __init__.py
+            gui/
+                geometry_widget.py
+                main_window.py
+                pyvista_widget.py
+                __init__.py
+                controls/
+                    analysis_widget.py
+                    dynamics_widget.py
+                    master_geometry_widget.py
+                    six_dof_widget.py
+                    three_dof_widget.py
+                    __init__.py
+            utils/
+                __init__.py
+    data/
+    docs/
+        v1.10 尚未完成的工作項目清單.md
+        v1.7 開發分支 - 多執行緒修復後迴歸測試計畫.md
+        v1.7 開發分支 變更日誌.md
+        v1.8 開發計畫_升級全域分析功能模組.md
+        v1.9 開發計畫_實作關節角度限制分析與角度輔助工具.md
+        v1.9 開發週期總結報告與交接清單.md
+        六自由度史都華平台簡化之三自由度平台.md
+        史都華平台參數描述及推導.md
+        史都華平台機械結構設計：從理論到實踐的系統化指南.md
+        專案交接概要-模組化史都華平台設計與模擬工具_v1.7_開發分支.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.10_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.10_穩定版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.11_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.12_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.6_穩定版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.7_穩定版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.8_穩定版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.9_穩定版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-修訂草稿_1.6.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.0.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.1.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.2.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.3.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.4.md
+        模組化史都華平台設計與模擬工具應用程式開發指南-提示.md
+        開發指南_v1.13_更新計畫_前置作業.md
+    pybullet_wheel/
+        origin.json
+    src/
+        __init__.py
+        core/
+            analysis_engine.py
+            config.py
+            database_manager.py
+            drive_system_engine.py
+            dynamics_engine.py
+            kinematics.py
+            report_generator.py
+            state_manager.py
+            __init__.py
+        db/
+            __init__.py
+        gui/
+            geometry_widget.py
+            main_window.py
+            pyvista_widget.py
+            __init__.py
+            controls/
+                analysis_widget.py
+                database_management_widget.py
+                drive_system_widget.py
+                dynamics_widget.py
+                master_geometry_widget.py
+                six_dof_widget.py
+                three_dof_widget.py
+                __init__.py
+        utils/
+            custom_widgets.py
+            __init__.py
+    tests/
+        test_drive_system.py
+        __init__.py
+    圖片/
+        電動缸系統設計與選型計算指南/
+    專案重啟/
+        i-Ride_平台數據.json
+        main.py
+        mi-Ride_平台數據.json
+        o-Ride E_平台數據.json
+        requirements.txt
+        v-Ride 25s_平台數據.json
+        v1.10 尚未完成的工作項目清單.md
+        v1.9 開發計畫_實作關節角度限制分析與角度輔助工具.md
+        v10.2 專案工作總結與新對話交接清單.md
+        v11 專案工作總結與新對話交接清單.md
+        Zoo Emmen_平台數據.json
+        不可動搖的溝通原則.md
+        全域最大靜載推力計算演算法.md
+        專案交接概要-模組化史都華平台設計與模擬工具_v1.7_開發分支.md
+        尚順三軸_平台數據.json
+        提示詞_整理與打包現有專案進度.md
+        提示詞_無縫接續專案開發.md
+        硬性約束.md
+        穩定基線及開發分支的流程.md
+        src/
+            i-Ride_平台數據.json
+            main.py
+            mi-Ride_平台數據.json
+            o-Ride E_平台數據.json
+            requirements.txt
+            v-Ride 25s_平台數據.json
+            Zoo Emmen_平台數據.json
+            __init__.py
+            尚順三軸_平台數據.json
+            core/
+                analysis_engine.py
+                config.py
+                database_manager.py
+                drive_system_engine.py
+                dynamics_engine.py
+                kinematics.py
+                report_generator.py
+                state_manager.py
+                __init__.py
+            db/
+                __init__.py
+            gui/
+                geometry_widget.py
+                main_window.py
+                pyvista_widget.py
+                __init__.py
+                controls/
+                    analysis_widget.py
+                    database_management_widget.py
+                    drive_system_widget.py
+                    dynamics_widget.py
+                    master_geometry_widget.py
+                    six_dof_widget.py
+                    three_dof_widget.py
+                    __init__.py
+            utils/
+                custom_widgets.py
+                __init__.py
+        src0/
+            __init__.py
+            core/
+                analysis_engine.py
+                config.py
+                dynamics_engine.py
+                kinematics.py
+                report_generator.py
+                state_manager.py
+                __init__.py
+            db/
+                __init__.py
+            gui/
+                geometry_widget.py
+                main_window.py
+                pyvista_widget.py
+                __init__.py
+                controls/
+                    analysis_widget.py
+                    dynamics_widget.py
+                    master_geometry_widget.py
+                    six_dof_widget.py
+                    three_dof_widget.py
+                    __init__.py
+            utils/
+                __init__.py
+    過渡檔/
+        debug_drive_system copy.py
+        debug_drive_system.py
+        excel_test.py
+        test_imports.py
+        test_layout.py
+        test_pybullet_widget.py
+        v1.16 專案工作總結與新對話交接清單.md
+        v1.17 全面測試計畫.md
+        v1.19 專案工作總結與新對話交接清單.md
+        v1.20 專案工作總結與新對話交接清單.md
+        v1.21 專案工作總結與新對話交接清單.md
+        v1.22 專案工作總結與新對話交接清單.md
+        v1.22 穩定基線完整修改計畫.md
+        v10.2 專案工作總結與新對話交接清單.md
+        v11 專案工作總結與新對話交接清單.md
+        史都華平台工作空間分析問題彙總.md
+        基礎背景與規則.md
+        基礎背景與規則.v4.md
+        應用程式開發指南 v1.20.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.10_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.10_穩定版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.11_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.12_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.19_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.20_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.21_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.22_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.23_彙整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.23_重整版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-1.7_穩定版.md
+        應用程式開發指南：模組化史都華平台設計與模擬工具-定稿_1.6.md
+        新對話接續提示詞.md
+        模組化重構方案.md
+        硬性約束.md
+        程式碼功能解說.md
+        螺桿篩選公式.md
+        開發指南 2.0.md
+        電動缸系統設計與選型計算指南.md
+        電動缸設計輔助程式文檔 2.0.md
+        電動缸設計輔助程式文檔.md
+        額定扭矩_最大扭矩_全域最大出力.md
+        驅動系統計算模組 - 開發規格書 v1.0.md
